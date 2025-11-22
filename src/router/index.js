@@ -6,6 +6,8 @@ import LearnMoreView from '../views/LearnmoreView.vue'
 import LoginView from '../views/LoginView.vue'
 import SignupView from '../views/SignupView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import VerifyEmailSentView from '@/views/VerifyEmailSentView.vue'
+import VerifyEmailView from '@/views/VerifyEmailView.vue'
 
 const routes = [
   {
@@ -37,6 +39,18 @@ const routes = [
     name: 'dashboard',
     component: DashboardView,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/verify-email-sent',
+    name: 'verify-email-sent',
+    component: VerifyEmailSentView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/verify-email/:token',
+    name: 'verify-email',
+    component: VerifyEmailView,
+    meta: { requiresAuth: false }
   }
 ]
 
