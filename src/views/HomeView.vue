@@ -17,6 +17,7 @@
       <div class="auth-buttons">
         <button class="btn btn-outline" @click="$router.push('/login')">Log In</button>
         <button class="btn btn-primary" @click="$router.push('/signup')">Sign Up</button>
+        <button class="btn btn-outline btn-large" @click="$router.push('/learn-more')">Learn More</button>
       </div>
     </header>
 
@@ -25,7 +26,7 @@
       <h1>Take Control of Your Debt with Smart Strategies</h1>
       <p>Anchorless uses advanced algorithms to create personalized debt payoff plans using snowball or avalanche methods. Get out of debt faster and save money.</p>
       <div class="hero-buttons">
-        <button class="btn btn-primary btn-large" @click="$router.push('/signup')">Start Free Trial</button>
+        <button class="btn btn-primary btn-large" @click="$router.push('/signup')">Get Started</button>
         <button class="btn btn-outline btn-large" @click="scrollToSection('features')">Learn More</button>
       </div>
     </section>
@@ -57,6 +58,16 @@
           </div>
           <h3>Payment Reminders</h3>
           <p>Never miss a payment with smart notifications and progress tracking to keep you motivated.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-graduation-cap"></i>
+          </div>
+            <h3>Educational Resources</h3>
+            <p>Learn about snowball and avalanche strategies with interactive examples.</p>
+            <button class="btn btn-outline" @click="$router.push('/learn-more')" style="margin-top: 1rem;">
+              Learn Strategies
+            </button>
         </div>
       </div>
     </section>
