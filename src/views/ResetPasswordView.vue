@@ -10,29 +10,13 @@
 
     <div class="auth-form-container">
       <div class="auth-card">
-        <h2>Welcome Back</h2>
-        <p class="auth-subtitle">Sign in to your Anchorless account</p>
+        <h2>Create New Password</h2>
+        <p class="auth-subtitle">Enter your new password below</p>
         
         <!-- Error Alert -->
         <div v-if="error" class="alert alert-error">
           <i class="fas fa-exclamation-circle"></i>
           <span>{{ error }}</span>
-        </div>
-
-        <!-- Verification Required Alert -->
-        <div v-if="needsVerification" class="alert alert-warning">
-          <i class="fas fa-envelope"></i>
-          <div class="alert-content">
-            <span>Your email address is not verified.</span>
-            <button 
-              class="btn-link" 
-              @click="resendVerification"
-              :disabled="resendLoading"
-            >
-              <span v-if="!resendLoading">Resend verification email</span>
-              <span v-else><i class="fas fa-spinner fa-spin"></i> Sending...</span>
-            </button>
-          </div>
         </div>
 
         <!-- Success Alert -->
@@ -41,53 +25,55 @@
           <span>{{ success }}</span>
         </div>
         
-        <form class="auth-form" @submit.prevent="login">
+        <form class="auth-form" @submit.prevent="resetPassword" v-if="!success">
           <div class="form-group">
-            <label for="email">
-              <i class="fas fa-envelope"></i>
-              Email
-            </label>
-            <input 
-              type="email" 
-              id="email" 
-              v-model="email" 
-              placeholder="Enter your email" 
-              :disabled="loading"
-              required
-            >
-          </div>
-          
-          <div class="form-group">
-            <label for="password">
+            <label for="newPassword">
               <i class="fas fa-lock"></i>
-              Password
+              New Password
             </label>
             <div class="password-input-wrapper">
               <input 
-                :type="showPassword ? 'text' : 'password'" 
-                id="password" 
-                v-model="password" 
-                placeholder="Enter your password"
+                :type="showNewPassword ? 'text' : 'password'" 
+                id="newPassword" 
+                v-model="newPassword" 
+                placeholder="Enter new password"
                 :disabled="loading"
                 required
               >
               <button 
                 type="button" 
                 class="toggle-password" 
-                @click="showPassword = !showPassword"
+                @click="showNewPassword = !showNewPassword"
                 :disabled="loading"
               >
-                <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                <i :class="showNewPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
               </button>
             </div>
           </div>
-
-          <div class="form-options">
-            <label class="remember-me">
-              <input type="checkbox" v-model="rememberMe" :disabled="loading">
-              <span>Remember me</span>
+          
+          <div class="form-group">
+            <label for="confirmPassword">
+              <i class="fas fa-lock"></i>
+              Confirm New Password
             </label>
-            <router-link to="/forgot-password" class="forgot-password">Forgot password?</router-link>
+            <div class="password-input-wrapper">
+              <input 
+                :type="showConfirmPassword ? 'text' : 'password'" 
+                id="confirmPassword" 
+                v-model="confirmPassword" 
+                placeholder="Confirm new password"
+                :disabled="loading"
+                required
+              >
+              <button 
+                type="button" 
+                class="toggle-password" 
+                @click="showConfirmPassword = !showConfirmPassword"
+                :disabled="loading"
+              >
+                <i :class="showConfirmPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+              </button>
+            </div>
           </div>
           
           <button 
@@ -95,15 +81,29 @@
             class="btn btn-primary btn-full" 
             :disabled="loading"
           >
-            <span v-if="!loading">Sign In</span>
+            <span v-if="!loading">Reset Password</span>
             <span v-else class="loading-spinner">
-              <i class="fas fa-spinner fa-spin"></i> Signing in...
+              <i class="fas fa-spinner fa-spin"></i> Resetting...
             </span>
           </button>
         </form>
-        
-        <div class="auth-links">
-          <p>Don't have an account? <router-link to="/signup">Sign up</router-link></p>
+
+        <div class="success-content" v-if="success">
+          <div class="success-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <h3>Password Reset Successful!</h3>
+          <p>Your password has been updated successfully. You can now sign in with your new password.</p>
+          
+          <div class="action-buttons">
+            <router-link to="/login" class="btn btn-primary btn-full">
+              Continue to Login
+            </router-link>
+          </div>
+        </div>
+
+        <div class="auth-links" v-if="!success">
+          <p>Remember your password? <router-link to="/login">Sign in</router-link></p>
         </div>
       </div>
     </div>
@@ -111,161 +111,98 @@
 </template>
 
 <script>
-import { useAuthStore } from '@/stores/auth'
-
 export default {
-  name: 'LoginView',
+  name: 'ResetPasswordView',
   data() {
     return {
-      email: '',
-      password: '',
-      showPassword: false,
-      rememberMe: false,
+      token: '',
+      newPassword: '',
+      confirmPassword: '',
+      showNewPassword: false,
+      showConfirmPassword: false,
       loading: false,
       error: null,
-      success: null,
-      needsVerification: false,
-      resendLoading: false
+      success: null
     }
   },
   methods: {
-    async login() {
+    async resetPassword() {
       // Clear previous messages
       this.error = null
       this.success = null
-      this.needsVerification = false
       
       // Validate inputs
-      if (!this.email || !this.password) {
+      if (!this.newPassword || !this.confirmPassword) {
         this.error = 'Please fill in all fields'
         return
       }
 
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(this.email)) {
-        this.error = 'Please enter a valid email address'
+      // Validate password match
+      if (this.newPassword !== this.confirmPassword) {
+        this.error = 'Passwords do not match'
+        return
+      }
+
+      // Validate password length
+      if (this.newPassword.length < 8) {
+        this.error = 'Password must be at least 8 characters long'
         return
       }
 
       this.loading = true
 
       try {
-        const response = await fetch('http://localhost:8000/auth/login/', {
+        const response = await fetch('http://localhost:8000/auth/reset-password/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            email: this.email,
-            password: this.password
+            token: this.token,
+            new_password: this.newPassword,
+            new_password2: this.confirmPassword
           })
         })
 
         const data = await response.json()
 
         if (!response.ok) {
-          // Check if email is not verified
-          if (data.error === 'Please verify your email before logging in.') {
-            // Email not verified - show resend option
-            this.needsVerification = true
-            this.error = null
-            return
-          }
-          
-          // Handle other error responses
-          if (response.status === 401) {
-            this.error = 'Invalid email or password'
-          } else if (response.status === 400) {
-            // Check for invalid credentials
-            if (data.error === 'Invalid credentials') {
-              this.error = 'Invalid email or password'
+          // Handle error responses
+          if (response.status === 400) {
+            if (data.token) {
+              this.error = 'Invalid or expired reset token. Please request a new password reset.'
+            } else if (data.new_password) {
+              this.error = data.new_password[0]
+            } else if (data.non_field_errors) {
+              this.error = data.non_field_errors[0]
             } else {
-              this.error = data.error || data.detail || 'Invalid login credentials'
+              this.error = 'Please check your information and try again.'
             }
           } else if (response.status === 500) {
             this.error = 'Server error. Please try again later.'
           } else {
-            this.error = 'An error occurred. Please try again.'
+            this.error = data.message || 'An error occurred. Please try again.'
           }
           return
         }
 
-        // Success - Store tokens and user data
-        const authStore = useAuthStore()
-        authStore.setAuth({
-          accessToken: data.access,
-          refreshToken: data.refresh,
-          user: data.user,
-          accessExpires: data.access_expires,
-          refreshExpires: data.refresh_expires
-        })
-
-        // Show success message briefly
-        this.success = `Welcome back, ${data.user.first_name || 'User'}!`
-
-        // Redirect after short delay
-        setTimeout(() => {
-          this.$router.push('/dashboard')
-        }, 1000)
+        // Success - Show success message
+        this.success = data.message || 'Your password has been reset successfully!'
 
       } catch (error) {
-        console.error('Login error:', error)
+        console.error('Password reset error:', error)
         this.error = 'Network error. Please check your connection and try again.'
       } finally {
         this.loading = false
       }
-    },
-    
-    async resendVerification() {
-      if (!this.email) {
-        this.error = 'Please enter your email address'
-        return
-      }
-      
-      this.resendLoading = true
-      this.error = null
-      this.success = null
-      
-      try {
-        const response = await fetch('http://localhost:8000/auth/resend-verification/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: this.email
-          })
-        })
-
-        if (response.ok) {
-          this.success = 'Verification email sent! Please check your inbox.'
-          this.needsVerification = false
-          
-          // Optionally redirect to verification sent page
-          setTimeout(() => {
-            this.$router.push({
-              path: '/verify-email-sent',
-              query: { email: this.email }
-            })
-          }, 2000)
-        } else {
-          const data = await response.json()
-          this.error = data.error || 'Failed to resend verification email. Please try again.'
-        }
-      } catch (error) {
-        console.error('Resend verification error:', error)
-        this.error = 'Network error. Please check your connection and try again.'
-      } finally {
-        this.resendLoading = false
-      }
     }
   },
   mounted() {
-    // Check if already logged in
-    const authStore = useAuthStore()
-    if (authStore.isAuthenticated) {
-      this.$router.push('/dashboard')
+    // Get token from route parameters
+    this.token = this.$route.params.token
+    
+    if (!this.token) {
+      this.error = 'Invalid reset link. Please check your email and try again.'
     }
   }
 }
@@ -397,42 +334,6 @@ header {
   color: #86efac;
 }
 
-.alert-warning {
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  color: #fcd34d;
-}
-
-.alert-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex: 1;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: var(--primary);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.9rem;
-  text-decoration: underline;
-  padding: 0;
-  margin-top: 0.25rem;
-  transition: color 0.3s ease;
-  text-align: left;
-}
-
-.btn-link:hover:not(:disabled) {
-  color: var(--accent);
-}
-
-.btn-link:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .alert i {
   font-size: 1.2rem;
 }
@@ -509,40 +410,6 @@ header {
   cursor: not-allowed;
 }
 
-/* Form Options */
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.remember-me {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--gray);
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.remember-me input[type="checkbox"] {
-  width: auto;
-  cursor: pointer;
-}
-
-.forgot-password {
-  color: var(--primary);
-  font-size: 0.9rem;
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-.forgot-password:hover {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
 /* Button Styles */
 .btn {
   padding: 0.7rem 1.5rem;
@@ -552,6 +419,10 @@ header {
   transition: all 0.3s ease;
   border: none;
   font-size: 0.9rem;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary {
@@ -584,6 +455,51 @@ header {
   gap: 0.5rem;
 }
 
+/* Success Content */
+.success-content {
+  text-align: center;
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.success-icon {
+  font-size: 4rem;
+  color: #10b981;
+  margin-bottom: 1.5rem;
+  animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.success-content h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--light);
+}
+
+.success-content p {
+  color: var(--gray);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.action-buttons {
+  margin-top: 2rem;
+}
+
 /* Auth Links */
 .auth-links {
   margin-top: 2rem;
@@ -607,12 +523,6 @@ header {
 @media (max-width: 768px) {
   .auth-card {
     padding: 2rem;
-  }
-
-  .form-options {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
   }
 }
 </style>

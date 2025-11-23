@@ -8,6 +8,9 @@ import SignupView from '../views/SignupView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import VerifyEmailSentView from '@/views/VerifyEmailSentView.vue'
 import VerifyEmailView from '@/views/VerifyEmailView.vue'
+import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
+import ResetPasswordView from '@/views/ResetPasswordView.vue'
+import ProfileView from '@/views/ProfileView.vue'
 
 const routes = [
   {
@@ -51,7 +54,25 @@ const routes = [
     name: 'verify-email',
     component: VerifyEmailView,
     meta: { requiresAuth: false }
-  }
+  },
+  {
+    path: '/forgot-password',
+    name: 'forgot-password',
+    component: ForgotPasswordView,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/reset-password/:token?',
+    name: 'reset-password',
+    component: () => ResetPasswordView,
+    meta: { requiresAuth: false }
+  },
+  {
+  path: '/profile',
+  name: 'profile',
+  component: () => ProfileView,
+  meta: { requiresAuth: true }
+}
 ]
 
 const router = createRouter({

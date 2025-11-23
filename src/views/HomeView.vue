@@ -14,10 +14,14 @@
           <li><a href="#how-it-works" @click="scrollToSection('how-it-works')">How It Works</a></li>
         </ul>
       </nav>
-      <div class="auth-buttons">
+      <div class="auth-buttons" v-if="!isLoggedIn">
         <button class="btn btn-outline" @click="$router.push('/login')">Log In</button>
         <button class="btn btn-primary" @click="$router.push('/signup')">Sign Up</button>
         <button class="btn btn-outline btn-large" @click="$router.push('/learn-more')">Learn More</button>
+      </div>
+      <div class="auth-buttons" v-else>
+        <button class="btn btn-primary" @click="$router.push('/dashboard')">Dashboard</button>
+        <button class="btn btn-outline" @click="logout">Log Out</button>
       </div>
     </header>
 
@@ -140,14 +144,27 @@
 </template>
 
 <script>
+import { useAuthStore } from '@/stores/auth'
+
 export default {
   name: 'HomeView',
+  computed: {
+    isLoggedIn() {
+      const authStore = useAuthStore()
+      return authStore.isAuthenticated
+    }
+  },
   methods: {
     scrollToSection(sectionId) {
       const element = document.getElementById(sectionId);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth' });
       }
+    },
+    logout() {
+      const authStore = useAuthStore()
+      authStore.logout()
+      this.$router.push('/')
     }
   }
 }

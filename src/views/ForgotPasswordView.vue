@@ -10,29 +10,17 @@
 
     <div class="auth-form-container">
       <div class="auth-card">
-        <h2>Welcome Back</h2>
-        <p class="auth-subtitle">Sign in to your Anchorless account</p>
+        <div class="password-reset-icon">
+          <i class="fas fa-key"></i>
+        </div>
+        
+        <h2>Reset Your Password</h2>
+        <p class="auth-subtitle">Enter your email address and we'll send you a link to reset your password</p>
         
         <!-- Error Alert -->
         <div v-if="error" class="alert alert-error">
           <i class="fas fa-exclamation-circle"></i>
           <span>{{ error }}</span>
-        </div>
-
-        <!-- Verification Required Alert -->
-        <div v-if="needsVerification" class="alert alert-warning">
-          <i class="fas fa-envelope"></i>
-          <div class="alert-content">
-            <span>Your email address is not verified.</span>
-            <button 
-              class="btn-link" 
-              @click="resendVerification"
-              :disabled="resendLoading"
-            >
-              <span v-if="!resendLoading">Resend verification email</span>
-              <span v-else><i class="fas fa-spinner fa-spin"></i> Sending...</span>
-            </button>
-          </div>
         </div>
 
         <!-- Success Alert -->
@@ -41,53 +29,20 @@
           <span>{{ success }}</span>
         </div>
         
-        <form class="auth-form" @submit.prevent="login">
+        <form class="auth-form" @submit.prevent="requestReset" v-if="!success">
           <div class="form-group">
             <label for="email">
               <i class="fas fa-envelope"></i>
-              Email
+              Email Address
             </label>
             <input 
               type="email" 
               id="email" 
               v-model="email" 
-              placeholder="Enter your email" 
+              placeholder="Enter your email address" 
               :disabled="loading"
               required
             >
-          </div>
-          
-          <div class="form-group">
-            <label for="password">
-              <i class="fas fa-lock"></i>
-              Password
-            </label>
-            <div class="password-input-wrapper">
-              <input 
-                :type="showPassword ? 'text' : 'password'" 
-                id="password" 
-                v-model="password" 
-                placeholder="Enter your password"
-                :disabled="loading"
-                required
-              >
-              <button 
-                type="button" 
-                class="toggle-password" 
-                @click="showPassword = !showPassword"
-                :disabled="loading"
-              >
-                <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-              </button>
-            </div>
-          </div>
-
-          <div class="form-options">
-            <label class="remember-me">
-              <input type="checkbox" v-model="rememberMe" :disabled="loading">
-              <span>Remember me</span>
-            </label>
-            <router-link to="/forgot-password" class="forgot-password">Forgot password?</router-link>
           </div>
           
           <button 
@@ -95,15 +50,46 @@
             class="btn btn-primary btn-full" 
             :disabled="loading"
           >
-            <span v-if="!loading">Sign In</span>
+            <span v-if="!loading">Send Reset Link</span>
             <span v-else class="loading-spinner">
-              <i class="fas fa-spinner fa-spin"></i> Signing in...
+              <i class="fas fa-spinner fa-spin"></i> Sending...
             </span>
           </button>
         </form>
-        
+
+        <div class="success-content" v-if="success">
+          <div class="success-details">
+            <div class="email-display">
+              <i class="fas fa-envelope"></i>
+              <span class="email-text">{{ email }}</span>
+            </div>
+            
+            <div class="instructions">
+              <h4>What to do next:</h4>
+              <ul>
+                <li>Check your email for a password reset link</li>
+                <li>Click the link to create a new password</li>
+                <li>The link will expire in 1 hour for security</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="action-buttons">
+            <button class="btn btn-outline btn-full" @click="resendEmail" :disabled="resendLoading">
+              <span v-if="!resendLoading">Resend Email</span>
+              <span v-else class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i> Resending...
+              </span>
+            </button>
+            
+            <router-link to="/login" class="btn btn-primary btn-full">
+              Back to Login
+            </router-link>
+          </div>
+        </div>
+
         <div class="auth-links">
-          <p>Don't have an account? <router-link to="/signup">Sign up</router-link></p>
+          <p>Remember your password? <router-link to="/login">Sign in</router-link></p>
         </div>
       </div>
     </div>
@@ -111,33 +97,26 @@
 </template>
 
 <script>
-import { useAuthStore } from '@/stores/auth'
-
 export default {
-  name: 'LoginView',
+  name: 'ForgotPasswordView',
   data() {
     return {
       email: '',
-      password: '',
-      showPassword: false,
-      rememberMe: false,
       loading: false,
+      resendLoading: false,
       error: null,
-      success: null,
-      needsVerification: false,
-      resendLoading: false
+      success: null
     }
   },
   methods: {
-    async login() {
+    async requestReset() {
       // Clear previous messages
       this.error = null
       this.success = null
-      this.needsVerification = false
       
       // Validate inputs
-      if (!this.email || !this.password) {
-        this.error = 'Please fill in all fields'
+      if (!this.email) {
+        this.error = 'Please enter your email address'
         return
       }
 
@@ -151,38 +130,25 @@ export default {
       this.loading = true
 
       try {
-        const response = await fetch('http://localhost:8000/auth/login/', {
+        const response = await fetch('http://localhost:8000/auth/forgot-password/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            email: this.email,
-            password: this.password
+            email: this.email
           })
         })
 
         const data = await response.json()
 
         if (!response.ok) {
-          // Check if email is not verified
-          if (data.error === 'Please verify your email before logging in.') {
-            // Email not verified - show resend option
-            this.needsVerification = true
-            this.error = null
-            return
-          }
-          
-          // Handle other error responses
-          if (response.status === 401) {
-            this.error = 'Invalid email or password'
-          } else if (response.status === 400) {
-            // Check for invalid credentials
-            if (data.error === 'Invalid credentials') {
-              this.error = 'Invalid email or password'
-            } else {
-              this.error = data.error || data.detail || 'Invalid login credentials'
-            }
+          // Handle error responses
+          if (response.status === 400) {
+            this.error = data.error || data.detail || 'Please check your email address and try again.'
+          } else if (response.status === 404) {
+            // For security, we show the same message regardless of whether email exists
+            this.success = 'If an account with that email exists, a password reset link has been sent.'
           } else if (response.status === 500) {
             this.error = 'Server error. Please try again later.'
           } else {
@@ -191,44 +157,23 @@ export default {
           return
         }
 
-        // Success - Store tokens and user data
-        const authStore = useAuthStore()
-        authStore.setAuth({
-          accessToken: data.access,
-          refreshToken: data.refresh,
-          user: data.user,
-          accessExpires: data.access_expires,
-          refreshExpires: data.refresh_expires
-        })
-
-        // Show success message briefly
-        this.success = `Welcome back, ${data.user.first_name || 'User'}!`
-
-        // Redirect after short delay
-        setTimeout(() => {
-          this.$router.push('/dashboard')
-        }, 1000)
+        // Success - Show success message
+        this.success = data.message || 'Password reset link has been sent to your email address.'
 
       } catch (error) {
-        console.error('Login error:', error)
+        console.error('Password reset request error:', error)
         this.error = 'Network error. Please check your connection and try again.'
       } finally {
         this.loading = false
       }
     },
-    
-    async resendVerification() {
-      if (!this.email) {
-        this.error = 'Please enter your email address'
-        return
-      }
-      
+
+    async resendEmail() {
       this.resendLoading = true
       this.error = null
-      this.success = null
-      
+
       try {
-        const response = await fetch('http://localhost:8000/auth/resend-verification/', {
+        const response = await fetch('http://localhost:8000/auth/forgot-password/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -239,33 +184,16 @@ export default {
         })
 
         if (response.ok) {
-          this.success = 'Verification email sent! Please check your inbox.'
-          this.needsVerification = false
-          
-          // Optionally redirect to verification sent page
-          setTimeout(() => {
-            this.$router.push({
-              path: '/verify-email-sent',
-              query: { email: this.email }
-            })
-          }, 2000)
+          this.success = 'Password reset link has been sent again to your email address.'
         } else {
-          const data = await response.json()
-          this.error = data.error || 'Failed to resend verification email. Please try again.'
+          throw new Error('Failed to resend email')
         }
       } catch (error) {
-        console.error('Resend verification error:', error)
-        this.error = 'Network error. Please check your connection and try again.'
+        console.error('Resend email error:', error)
+        this.error = 'Failed to resend email. Please try again.'
       } finally {
         this.resendLoading = false
       }
-    }
-  },
-  mounted() {
-    // Check if already logged in
-    const authStore = useAuthStore()
-    if (authStore.isAuthenticated) {
-      this.$router.push('/dashboard')
     }
   }
 }
@@ -345,8 +273,28 @@ header {
   border: 1px solid rgba(0, 245, 255, 0.2);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
   width: 100%;
-  max-width: 450px;
+  max-width: 500px;
   backdrop-filter: blur(10px);
+  text-align: center;
+}
+
+.password-reset-icon {
+  font-size: 3.5rem;
+  color: var(--primary);
+  margin-bottom: 1.5rem;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
 }
 
 .auth-card h2 {
@@ -361,6 +309,8 @@ header {
 .auth-subtitle {
   color: var(--gray);
   margin-bottom: 2rem;
+  font-size: 1.1rem;
+  line-height: 1.6;
 }
 
 /* Alert Styles */
@@ -395,42 +345,6 @@ header {
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
   color: #86efac;
-}
-
-.alert-warning {
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  color: #fcd34d;
-}
-
-.alert-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex: 1;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: var(--primary);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.9rem;
-  text-decoration: underline;
-  padding: 0;
-  margin-top: 0.25rem;
-  transition: color 0.3s ease;
-  text-align: left;
-}
-
-.btn-link:hover:not(:disabled) {
-  color: var(--accent);
-}
-
-.btn-link:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .alert i {
@@ -478,71 +392,6 @@ header {
   cursor: not-allowed;
 }
 
-/* Password Input Wrapper */
-.password-input-wrapper {
-  position: relative;
-}
-
-.password-input-wrapper input {
-  padding-right: 3rem;
-}
-
-.toggle-password {
-  position: absolute;
-  right: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: var(--gray);
-  cursor: pointer;
-  transition: color 0.3s ease;
-  padding: 0.5rem;
-}
-
-.toggle-password:hover {
-  color: var(--primary);
-}
-
-.toggle-password:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Form Options */
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.remember-me {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--gray);
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.remember-me input[type="checkbox"] {
-  width: auto;
-  cursor: pointer;
-}
-
-.forgot-password {
-  color: var(--primary);
-  font-size: 0.9rem;
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-.forgot-password:hover {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
 /* Button Styles */
 .btn {
   padding: 0.7rem 1.5rem;
@@ -552,6 +401,10 @@ header {
   transition: all 0.3s ease;
   border: none;
   font-size: 0.9rem;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary {
@@ -570,6 +423,18 @@ header {
   transform: none;
 }
 
+.btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--dark);
+  box-shadow: var(--glow);
+}
+
 .btn-full {
   width: 100%;
   margin-top: 1rem;
@@ -582,6 +447,82 @@ header {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+}
+
+/* Success Content */
+.success-content {
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.success-details {
+  background: rgba(0, 245, 255, 0.1);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.email-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(0, 245, 255, 0.05);
+  border-radius: 8px;
+}
+
+.email-display i {
+  color: var(--primary);
+  font-size: 1.2rem;
+}
+
+.email-text {
+  color: var(--light);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.instructions {
+  text-align: left;
+}
+
+.instructions h4 {
+  color: var(--light);
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.instructions ul {
+  list-style: none;
+  padding: 0;
+}
+
+.instructions li {
+  color: var(--gray);
+  margin-bottom: 0.5rem;
+  padding-left: 1.5rem;
+  position: relative;
+}
+
+.instructions li:before {
+  content: '•';
+  color: var(--primary);
+  position: absolute;
+  left: 0.5rem;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 
 /* Auth Links */
@@ -608,11 +549,9 @@ header {
   .auth-card {
     padding: 2rem;
   }
-
-  .form-options {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+  
+  .password-reset-icon {
+    font-size: 3rem;
   }
 }
 </style>
