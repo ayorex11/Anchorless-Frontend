@@ -155,7 +155,7 @@
                 <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
               </div>
               <div class="card-content">
-                <button class="action-btn" @click="addDebt">
+                <button class="action-btn" @click="showAddDebtModal = true">
                   <div class="action-icon">
                     <i class="fas fa-plus-circle"></i>
                   </div>
@@ -368,6 +368,142 @@
         </form>
       </div>
     </div>
+
+    <!-- Add Debt Modal -->
+    <div v-if="showAddDebtModal" class="modal-overlay" @click="showAddDebtModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Add New Debt</h2>
+          <button class="close-btn" @click="showAddDebtModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <form @submit.prevent="createLoan">
+          <div class="form-group">
+            <label for="debtPlan">Debt Plan</label>
+            <select 
+              id="debtPlan" 
+              v-model="newLoan.debt_plan" 
+              required
+            >
+              <option value="" disabled>Select a debt plan</option>
+              <option 
+                v-for="plan in debtPlans" 
+                :key="plan.id" 
+                :value="plan.id"
+              >
+                {{ plan.name }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="loanName">Loan Name</label>
+            <input 
+              type="text" 
+              id="loanName" 
+              v-model="newLoan.name" 
+              placeholder="e.g., Credit Card, Car Loan"
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label for="principalBalance">Principal Balance</label>
+            <div class="input-with-symbol">
+              <span class="input-symbol">$</span>
+              <input 
+                type="number" 
+                id="principalBalance" 
+                v-model="newLoan.principal_balance" 
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                required
+              >
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="interestRate">Interest Rate (%)</label>
+            <div class="input-with-symbol">
+              <input 
+                type="number" 
+                id="interestRate" 
+                v-model="newLoan.interest_rate" 
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                max="100"
+                required
+              >
+              <span class="input-symbol">%</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="dueDate">Due Date (Day of Month)</label>
+            <input 
+              type="number" 
+              id="dueDate" 
+              v-model="newLoan.due_date" 
+              placeholder="1-31"
+              min="1"
+              max="31"
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input 
+                type="checkbox" 
+                v-model="newLoan.manually_set_minimum_payment"
+              >
+              <span class="checkmark"></span>
+              Set minimum payment manually
+            </label>
+          </div>
+          <div v-if="newLoan.manually_set_minimum_payment" class="form-group">
+            <label for="minimumPayment">Minimum Payment</label>
+            <div class="input-with-symbol">
+              <span class="input-symbol">$</span>
+              <input 
+                type="number" 
+                id="minimumPayment" 
+                v-model="newLoan.minimum_payment" 
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                required
+              >
+            </div>
+          </div>
+          <div v-if="loanError" class="alert alert-error">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ loanError }}</span>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" @click="showAddDebtModal = false">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="loanLoading">
+              <span v-if="!loanLoading">Add Debt</span>
+              <span v-else><i class="fas fa-spinner fa-spin"></i> Adding...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Throttling Notification -->
+    <div v-if="showThrottleNotification" class="throttle-notification">
+      <div class="notification-content">
+        <i class="fas fa-clock"></i>
+        <div class="notification-text">
+          <h4>Too Many Requests</h4>
+          <p>Please wait a moment before trying again.</p>
+        </div>
+        <button class="close-notification" @click="showThrottleNotification = false">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -387,10 +523,14 @@ export default {
       totalDebt: 0,
       showCreatePlanModal: false,
       showEditPlanModal: false,
+      showAddDebtModal: false,
+      showThrottleNotification: false,
       createLoading: false,
       createError: null,
       updateLoading: false,
       updateError: null,
+      loanLoading: false,
+      loanError: null,
       newPlan: {
         name: '',
         strategy: 'snowball',
@@ -400,6 +540,15 @@ export default {
         id: null,
         name: '',
         monthly_payment_budget: ''
+      },
+      newLoan: {
+        debt_plan: '',
+        name: '',
+        principal_balance: '',
+        interest_rate: '',
+        minimum_payment: '',
+        due_date: '',
+        manually_set_minimum_payment: false
       }
     }
   },
@@ -430,6 +579,11 @@ export default {
       try {
         const response = await api.get('/DebtPlan/list_debt_plans/')
         
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
         if (!response.ok) {
           throw new Error('Failed to fetch debt plans')
         }
@@ -458,6 +612,11 @@ export default {
           strategy: this.newPlan.strategy,
           monthly_payment_budget: this.newPlan.monthly_payment_budget
         })
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
         
         if (!response.ok) {
           const data = await response.json()
@@ -512,6 +671,11 @@ export default {
           monthly_payment_budget: this.editingPlan.monthly_payment_budget
         })
         
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
         if (!response.ok) {
           const data = await response.json()
           throw new Error(data.error || 'Failed to update debt plan')
@@ -542,9 +706,75 @@ export default {
       }
     },
     
+    async createLoan() {
+      this.loanLoading = true
+      this.loanError = null
+      
+      try {
+        // Prepare the loan data
+        const loanData = {
+          debt_plan: this.newLoan.debt_plan,
+          name: this.newLoan.name,
+          principal_balance: this.newLoan.principal_balance,
+          interest_rate: this.newLoan.interest_rate,
+          due_date: parseInt(this.newLoan.due_date),
+          manually_set_minimum_payment: this.newLoan.manually_set_minimum_payment
+        }
+        
+        // Only include minimum_payment if manually set
+        if (this.newLoan.manually_set_minimum_payment) {
+          loanData.minimum_payment = this.newLoan.minimum_payment
+        }
+        
+        const response = await api.post('/Loan/create/', loanData)
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to create loan')
+        }
+        
+        const data = await response.json()
+        
+        // Reset form and close modal
+        this.resetLoanForm()
+        this.showAddDebtModal = false
+        
+        // Show success message
+        this.showNotification('Loan added successfully!', 'success')
+        
+      } catch (error) {
+        console.error('Error creating loan:', error)
+        this.loanError = error.message || 'Failed to add loan'
+      } finally {
+        this.loanLoading = false
+      }
+    },
+    
+    resetLoanForm() {
+      this.newLoan = {
+        debt_plan: '',
+        name: '',
+        principal_balance: '',
+        interest_rate: '',
+        minimum_payment: '',
+        due_date: '',
+        manually_set_minimum_payment: false
+      }
+    },
+    
     async viewPlan(planId) {
       try {
         const response = await api.get(`/DebtPlan/get_debt_plan/${planId}/`)
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
         
         if (!response.ok) {
           throw new Error('Failed to fetch plan details')
@@ -580,6 +810,14 @@ export default {
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     },
 
+    handleThrottling() {
+      this.showThrottleNotification = true
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        this.showThrottleNotification = false
+      }, 5000)
+    },
+
     showNotification(message, type = 'info') {
       // You can integrate with a notification library like vue-notification
       // For now, using a simple alert or console log
@@ -600,8 +838,7 @@ export default {
     },
     
     addDebt() {
-      console.log('Add debt clicked')
-      // Navigate to add debt page
+      this.showAddDebtModal = true
     }
   },
   mounted() {
@@ -1392,7 +1629,6 @@ nav ul li a.active::after {
 
 .input-symbol {
   position: absolute;
-  left: 1rem;
   top: 50%;
   transform: translateY(-50%);
   color: var(--gray);
@@ -1401,6 +1637,52 @@ nav ul li a.active::after {
 
 .input-with-symbol input {
   padding-left: 2.5rem;
+}
+
+.input-with-symbol .input-symbol:first-child {
+  left: 1rem;
+}
+
+.input-with-symbol .input-symbol:last-child {
+  right: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: normal;
+}
+
+.checkbox-label input {
+  display: none;
+}
+
+.checkmark {
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  margin-right: 0.75rem;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.checkbox-label input:checked + .checkmark {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.checkbox-label input:checked + .checkmark::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid var(--dark);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .strategy-options {
@@ -1477,6 +1759,68 @@ nav ul li a.active::after {
   margin-top: 2rem;
 }
 
+/* Throttling Notification */
+.throttle-notification {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  z-index: 3000;
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.notification-content i {
+  font-size: 1.5rem;
+}
+
+.notification-text h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+}
+
+.notification-text p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.close-notification {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+.close-notification:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 /* Responsive Design */
 @media (max-width: 1024px) {
   .dashboard-grid {
@@ -1545,6 +1889,16 @@ nav ul li a.active::after {
   .modal-header,
   .modal-content form {
     padding: 1.5rem;
+  }
+  
+  .throttle-notification {
+    top: 80px;
+    right: 10px;
+    left: 10px;
+  }
+  
+  .notification-content {
+    padding: 0.75rem 1rem;
   }
 }
 </style>
