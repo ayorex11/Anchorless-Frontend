@@ -16,9 +16,13 @@
           <li><a href="#comparison" @click="scrollToSection('comparison')">Compare</a></li>
         </ul>
       </nav>
-      <div class="auth-buttons">
+      <div class="auth-buttons" v-if="!isLoggedIn">
         <button class="btn btn-outline" @click="$router.push('/login')">Log In</button>
         <button class="btn btn-primary" @click="$router.push('/signup')">Sign Up</button>
+      </div>
+      <div class="auth-buttons" v-else>
+        <button class="btn btn-primary" @click="$router.push('/dashboard')">Dashboard</button>
+        <button class="btn btn-outline" @click="logout">Log Out</button>
       </div>
     </header>
 
@@ -387,8 +391,15 @@
 </template>
 
 <script>
+import { useAuthStore } from '@/stores/auth'
 export default {
   name: 'LearnMoreView',
+  computed: {
+    isLoggedIn() {
+      const authStore = useAuthStore()
+      return authStore.isAuthenticated
+    }
+  },
   data() {
     return {
       snowballStep: 0,
@@ -401,6 +412,11 @@ export default {
       if (element) {
         element.scrollIntoView({ behavior: 'smooth' });
       }
+    },
+    logout() {
+      const authStore = useAuthStore()
+      authStore.logout()
+      this.$router.push('/')
     }
   }
 }

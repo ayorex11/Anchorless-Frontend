@@ -27,174 +27,203 @@
 
     <main class="dashboard-main">
       <div class="container">
-        <!-- Welcome Section -->
-        <div class="welcome-section">
-          <div class="welcome-content">
-            <h1>Welcome Back, {{ user?.first_name || 'Friend' }}! 👋</h1>
-            <p>Let's continue your journey to financial freedom</p>
+        <!-- Loading State -->
+        <div v-if="loading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading your dashboard...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else-if="error" class="error-state">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Something went wrong</h3>
+          <p>{{ error }}</p>
+          <button class="btn btn-primary" @click="fetchDebtPlans">Try Again</button>
+        </div>
+
+        <!-- No Debt Plan State -->
+        <div v-else-if="!hasDebtPlan" class="empty-dashboard">
+          <div class="welcome-section">
+            <h1>Welcome to Anchorless, {{ user?.first_name || 'Friend' }}! 👋</h1>
+            <p>Let's get started on your journey to financial freedom</p>
           </div>
-          <div class="quick-stats">
-            <div class="stat-card">
-              <i class="fas fa-wallet"></i>
-              <div class="stat-content">
-                <span class="stat-label">Total Debt</span>
-                <span class="stat-value">${{ totalDebt.toLocaleString() }}</span>
-              </div>
+
+          <div class="onboarding-card">
+            <div class="onboarding-icon">
+              <i class="fas fa-rocket"></i>
             </div>
-            <div class="stat-card">
-              <i class="fas fa-chart-line"></i>
-              <div class="stat-content">
-                <span class="stat-label">Paid Off</span>
-                <span class="stat-value success">${{ paidOff.toLocaleString() }}</span>
+            <h2>Create Your First Debt Plan</h2>
+            <p>Start by creating a debt payoff plan. Choose your strategy and set your monthly budget to get personalized recommendations.</p>
+            
+            <button class="btn btn-primary btn-large" @click="showCreatePlanModal = true">
+              <i class="fas fa-plus-circle"></i> Create Debt Plan
+            </button>
+
+            <div class="info-cards">
+              <div class="info-card">
+                <i class="fas fa-snowflake"></i>
+                <h4>Snowball Method</h4>
+                <p>Pay off smallest debts first for quick wins</p>
               </div>
-            </div>
-            <div class="stat-card">
-              <i class="fas fa-calendar-alt"></i>
-              <div class="stat-content">
-                <span class="stat-label">Months Left</span>
-                <span class="stat-value">{{ monthsRemaining }}</span>
+              <div class="info-card">
+                <i class="fas fa-mountain"></i>
+                <h4>Avalanche Method</h4>
+                <p>Pay off highest interest debts to save money</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Main Content Grid -->
-        <div class="dashboard-grid">
-          <!-- Current Strategy Card -->
-          <div class="dashboard-card strategy-card">
-            <div class="card-header">
-              <h2><i class="fas fa-bullseye"></i> Current Strategy</h2>
-              <button class="btn btn-sm btn-outline" @click="changeStrategy">Change</button>
+        <!-- Dashboard with Debt Plan -->
+        <div v-else class="dashboard-content">
+          <!-- Welcome Section -->
+          <div class="welcome-section with-stats">
+            <div class="welcome-content">
+              <h1>Welcome Back, {{ user?.first_name || 'Friend' }}! 👋</h1>
+              <p>Here's your financial progress overview</p>
             </div>
-            <div class="card-content">
-              <div class="strategy-display">
-                <div class="strategy-badge" :class="currentStrategy.toLowerCase()">
-                  {{ currentStrategy }}
+            <div class="quick-stats">
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <i class="fas fa-wallet"></i>
                 </div>
-                <p class="strategy-description">{{ strategyDescription }}</p>
+                <div class="stat-content">
+                  <span class="stat-label">Total Debt</span>
+                  <span class="stat-value">${{ totalDebt.toLocaleString() }}</span>
+                </div>
               </div>
-              <div class="strategy-stats">
-                <div class="stat-item">
-                  <span class="label">Next Payment:</span>
-                  <span class="value">${{ nextPayment }}</span>
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <i class="fas fa-chart-line"></i>
                 </div>
-                <div class="stat-item">
-                  <span class="label">Current Focus:</span>
-                  <span class="value">{{ currentFocus }}</span>
+                <div class="stat-content">
+                  <span class="stat-label">Monthly Budget</span>
+                  <span class="stat-value">${{ activePlan?.monthly_payment_budget || 0 }}</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="stat-content">
+                  <span class="stat-label">Payoff Date</span>
+                  <span class="stat-value">{{ formattedPayoffDate }}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Debt Progress Card -->
-          <div class="dashboard-card progress-card">
-            <div class="card-header">
-              <h2><i class="fas fa-chart-pie"></i> Debt Progress</h2>
-            </div>
-            <div class="card-content">
-              <div class="progress-circle">
-                <svg viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" class="progress-bg"></circle>
-                  <circle cx="50" cy="50" r="45" class="progress-bar" 
-                          :style="{ strokeDashoffset: progressOffset }"></circle>
-                </svg>
-                <div class="progress-text">
-                  <span class="progress-percent">{{ progressPercent }}%</span>
-                  <span class="progress-label">Complete</span>
-                </div>
+          <!-- Main Content Grid -->
+          <div class="dashboard-grid">
+            <!-- Current Strategy Card -->
+            <div class="dashboard-card strategy-card">
+              <div class="card-header">
+                <h2><i class="fas fa-bullseye"></i> Current Strategy</h2>
+                <button class="btn btn-sm btn-outline" @click="editPlan(activePlan)">
+                  <i class="fas fa-edit"></i> Edit
+                </button>
               </div>
-              <p class="progress-message">
-                You've paid off <strong>${{ paidOff.toLocaleString() }}</strong> of your total debt. Keep going!
-              </p>
-            </div>
-          </div>
-
-          <!-- Quick Actions Card -->
-          <div class="dashboard-card actions-card">
-            <div class="card-header">
-              <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
-            </div>
-            <div class="card-content">
-              <button class="action-btn" @click="addDebt">
-                <i class="fas fa-plus-circle"></i>
-                <span>Add New Debt</span>
-              </button>
-              <button class="action-btn" @click="recordPayment">
-                <i class="fas fa-money-bill-wave"></i>
-                <span>Record Payment</span>
-              </button>
-              <button class="action-btn" @click="viewReport">
-                <i class="fas fa-file-alt"></i>
-                <span>View Full Report</span>
-              </button>
-              <button class="action-btn" @click="$router.push('/learn-more')">
-                <i class="fas fa-graduation-cap"></i>
-                <span>Learn Strategies</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Active Debts Card -->
-          <div class="dashboard-card debts-card full-width">
-            <div class="card-header">
-              <h2><i class="fas fa-list"></i> Active Debts</h2>
-              <button class="btn btn-sm btn-primary" @click="addDebt">
-                <i class="fas fa-plus"></i> Add Debt
-              </button>
-            </div>
-            <div class="card-content">
-              <div v-if="debts.length === 0" class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <h3>No Debts Added Yet</h3>
-                <p>Start by adding your first debt to create a personalized payoff plan</p>
-                <button class="btn btn-primary" @click="addDebt">Add Your First Debt</button>
-              </div>
-              <div v-else class="debts-list">
-                <div v-for="debt in debts" :key="debt.id" class="debt-item">
-                  <div class="debt-info">
-                    <h3>{{ debt.name }}</h3>
-                    <span class="debt-type">{{ debt.type }}</span>
+              <div class="card-content">
+                <div class="strategy-display">
+                  <div class="strategy-badge" :class="activePlan?.strategy">
+                    <i :class="strategyIcon"></i>
+                    {{ activePlan?.strategy === 'snowball' ? 'Snowball' : 'Avalanche' }}
                   </div>
-                  <div class="debt-details">
-                    <div class="detail">
-                      <span class="detail-label">Balance</span>
-                      <span class="detail-value">${{ debt.balance.toLocaleString() }}</span>
+                  <h3 class="plan-name">{{ activePlan?.name }}</h3>
+                  <p class="strategy-description">{{ strategyDescription }}</p>
+                </div>
+                <div class="strategy-stats">
+                  <div class="stat-item">
+                    <span class="label">Monthly Budget:</span>
+                    <span class="value">${{ activePlan?.monthly_payment_budget }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="label">Interest Saved:</span>
+                    <span class="value">${{ formatCurrency(activePlan?.total_interest_saved) }}</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="label">Created:</span>
+                    <span class="value">{{ formatDate(activePlan?.created_at) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Actions Card -->
+            <div class="dashboard-card actions-card">
+              <div class="card-header">
+                <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
+              </div>
+              <div class="card-content">
+                <button class="action-btn" @click="addDebt">
+                  <div class="action-icon">
+                    <i class="fas fa-plus-circle"></i>
+                  </div>
+                  <div class="action-text">
+                    <span class="action-title">Add New Debt</span>
+                    <span class="action-desc">Track a new debt</span>
+                  </div>
+                </button>
+                <button class="action-btn" @click="showCreatePlanModal = true">
+                  <div class="action-icon">
+                    <i class="fas fa-file-alt"></i>
+                  </div>
+                  <div class="action-text">
+                    <span class="action-title">Create New Plan</span>
+                    <span class="action-desc">Start a new strategy</span>
+                  </div>
+                </button>
+                <button class="action-btn" @click="$router.push('/learn-more')">
+                  <div class="action-icon">
+                    <i class="fas fa-graduation-cap"></i>
+                  </div>
+                  <div class="action-text">
+                    <span class="action-title">Learn Strategies</span>
+                    <span class="action-desc">Understand methods</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- All Plans Card -->
+            <div class="dashboard-card plans-card full-width">
+              <div class="card-header">
+                <h2><i class="fas fa-list"></i> Your Debt Plans</h2>
+              </div>
+              <div class="card-content">
+                <div class="plans-list">
+                  <div 
+                    v-for="plan in debtPlans" 
+                    :key="plan.id" 
+                    class="plan-item" 
+                    :class="{ active: plan.is_active }"
+                    @click="setActivePlan(plan)"
+                  >
+                    <div class="plan-main">
+                      <div class="plan-info">
+                        <h3>{{ plan.name }}</h3>
+                        <div class="plan-meta">
+                          <span class="plan-strategy" :class="plan.strategy">
+                            <i :class="getStrategyIcon(plan.strategy)"></i>
+                            {{ plan.strategy === 'snowball' ? 'Snowball' : 'Avalanche' }}
+                          </span>
+                          <span v-if="plan.is_active" class="active-badge">
+                            <i class="fas fa-check"></i> Active
+                          </span>
+                        </div>
+                      </div>
+                      <div class="plan-details">
+                        <div class="detail">
+                          <span class="detail-label">Monthly Budget</span>
+                          <span class="detail-value">${{ plan.monthly_payment_budget }}</span>
+                        </div>
+                        <div class="detail">
+                          <span class="detail-label">Created</span>
+                          <span class="detail-value">{{ formatDate(plan.created_at) }}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div class="detail">
-                      <span class="detail-label">APR</span>
-                      <span class="detail-value">{{ debt.apr }}%</span>
-                    </div>
-                    <div class="detail">
-                      <span class="detail-label">Min. Payment</span>
-                      <span class="detail-value">${{ debt.minPayment }}</span>
-                    </div>
                   </div>
-                  <div class="debt-actions">
-                    <button class="btn-icon" title="Edit"><i class="fas fa-edit"></i></button>
-                    <button class="btn-icon" title="Delete"><i class="fas fa-trash"></i></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Upcoming Payments Card -->
-          <div class="dashboard-card payments-card full-width">
-            <div class="card-header">
-              <h2><i class="fas fa-calendar-check"></i> Upcoming Payments</h2>
-            </div>
-            <div class="card-content">
-              <div class="payments-timeline">
-                <div v-for="payment in upcomingPayments" :key="payment.id" class="payment-item">
-                  <div class="payment-date">
-                    <span class="month">{{ payment.month }}</span>
-                    <span class="day">{{ payment.day }}</span>
-                  </div>
-                  <div class="payment-info">
-                    <h4>{{ payment.debtName }}</h4>
-                    <p>${{ payment.amount }} payment due</p>
-                  </div>
-                  <button class="btn btn-sm btn-primary">Mark as Paid</button>
                 </div>
               </div>
             </div>
@@ -202,6 +231,143 @@
         </div>
       </div>
     </main>
+
+    <!-- Create Plan Modal -->
+    <div v-if="showCreatePlanModal" class="modal-overlay" @click="showCreatePlanModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Create Debt Plan</h2>
+          <button class="close-btn" @click="showCreatePlanModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <form @submit.prevent="createPlan">
+          <div class="form-group">
+            <label for="planName">Plan Name</label>
+            <input 
+              type="text" 
+              id="planName" 
+              v-model="newPlan.name" 
+              placeholder="e.g., Master Debt Plan"
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label for="strategy">Strategy</label>
+            <div class="strategy-options">
+              <label class="strategy-option" :class="{ selected: newPlan.strategy === 'snowball' }">
+                <input 
+                  type="radio" 
+                  v-model="newPlan.strategy" 
+                  value="snowball"
+                  required
+                >
+                <div class="option-content">
+                  <i class="fas fa-snowflake"></i>
+                  <div class="option-text">
+                    <strong>Snowball Method</strong>
+                    <span>Pay smallest debts first for quick wins</span>
+                  </div>
+                </div>
+              </label>
+              <label class="strategy-option" :class="{ selected: newPlan.strategy === 'avalanche' }">
+                <input 
+                  type="radio" 
+                  v-model="newPlan.strategy" 
+                  value="avalanche"
+                  required
+                >
+                <div class="option-content">
+                  <i class="fas fa-mountain"></i>
+                  <div class="option-text">
+                    <strong>Avalanche Method</strong>
+                    <span>Pay highest interest first to save money</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="budget">Monthly Payment Budget</label>
+            <div class="input-with-symbol">
+              <span class="input-symbol">$</span>
+              <input 
+                type="number" 
+                id="budget" 
+                v-model="newPlan.monthly_payment_budget" 
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                required
+              >
+            </div>
+          </div>
+          <div v-if="createError" class="alert alert-error">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ createError }}</span>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" @click="showCreatePlanModal = false">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="createLoading">
+              <span v-if="!createLoading">Create Plan</span>
+              <span v-else><i class="fas fa-spinner fa-spin"></i> Creating...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Plan Modal -->
+    <div v-if="showEditPlanModal" class="modal-overlay" @click="showEditPlanModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Edit Debt Plan</h2>
+          <button class="close-btn" @click="showEditPlanModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <form @submit.prevent="updatePlan">
+          <div class="form-group">
+            <label for="editPlanName">Plan Name</label>
+            <input 
+              type="text" 
+              id="editPlanName" 
+              v-model="editingPlan.name" 
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label for="editBudget">Monthly Payment Budget</label>
+            <div class="input-with-symbol">
+              <span class="input-symbol">$</span>
+              <input 
+                type="number" 
+                id="editBudget" 
+                v-model="editingPlan.monthly_payment_budget" 
+                step="0.01"
+                min="0"
+                required
+              >
+            </div>
+          </div>
+          <div v-if="updateError" class="alert alert-error">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ updateError }}</span>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" @click="showEditPlanModal = false">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="updateLoading">
+              <span v-if="!updateLoading">Update Plan</span>
+              <span v-else><i class="fas fa-spinner fa-spin"></i> Updating...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -214,83 +380,234 @@ export default {
   data() {
     return {
       user: null,
-      totalDebt: 25000,
-      paidOff: 5000,
-      monthsRemaining: 24,
-      currentStrategy: 'Snowball',
-      currentFocus: 'Credit Card A',
-      nextPayment: 450,
-      debts: [
-        {
-          id: 1,
-          name: 'Credit Card A',
-          type: 'Credit Card',
-          balance: 5000,
-          apr: 18.99,
-          minPayment: 150
-        },
-        {
-          id: 2,
-          name: 'Student Loan',
-          type: 'Student Loan',
-          balance: 15000,
-          apr: 4.5,
-          minPayment: 200
-        },
-        {
-          id: 3,
-          name: 'Personal Loan',
-          type: 'Personal Loan',
-          balance: 5000,
-          apr: 12.5,
-          minPayment: 100
-        }
-      ],
-      upcomingPayments: [
-        { id: 1, month: 'NOV', day: '25', debtName: 'Credit Card A', amount: 150 },
-        { id: 2, month: 'NOV', day: '28', debtName: 'Student Loan', amount: 200 },
-        { id: 3, month: 'DEC', day: '05', debtName: 'Personal Loan', amount: 100 }
-      ]
+      loading: true,
+      error: null,
+      debtPlans: [],
+      activePlan: null,
+      totalDebt: 0,
+      showCreatePlanModal: false,
+      showEditPlanModal: false,
+      createLoading: false,
+      createError: null,
+      updateLoading: false,
+      updateError: null,
+      newPlan: {
+        name: '',
+        strategy: 'snowball',
+        monthly_payment_budget: ''
+      },
+      editingPlan: {
+        id: null,
+        name: '',
+        monthly_payment_budget: ''
+      }
     }
   },
   computed: {
-    progressPercent() {
-      const total = this.totalDebt + this.paidOff
-      return Math.round((this.paidOff / total) * 100)
-    },
-    progressOffset() {
-      const circumference = 2 * Math.PI * 45
-      return circumference - (this.progressPercent / 100) * circumference
+    hasDebtPlan() {
+      return this.debtPlans.length > 0
     },
     strategyDescription() {
-      return this.currentStrategy === 'Snowball' 
-        ? 'Paying off smallest debts first for psychological wins'
-        : 'Paying off highest interest debts first to save money'
+      if (!this.activePlan) return ''
+      return this.activePlan.strategy === 'snowball' 
+        ? 'Focus on paying off your smallest debts first. This method builds momentum with quick wins and keeps you motivated throughout your debt-free journey.'
+        : 'Prioritize debts with the highest interest rates. This approach saves you the most money on interest payments over time.'
+    },
+    strategyIcon() {
+      return this.activePlan?.strategy === 'snowball' ? 'fas fa-snowflake' : 'fas fa-mountain'
+    },
+    formattedPayoffDate() {
+      if (!this.activePlan?.projected_payoff_date) return 'Calculating...'
+      const date = new Date(this.activePlan.projected_payoff_date)
+      return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     }
   },
   methods: {
+    async fetchDebtPlans() {
+      this.loading = true
+      this.error = null
+      
+      try {
+        const response = await api.get('/DebtPlan/list_debt_plans/')
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch debt plans')
+        }
+        
+        const data = await response.json()
+        this.debtPlans = data
+        
+        // Set active plan (first active plan, or first plan if none active)
+        this.activePlan = this.debtPlans.find(plan => plan.is_active) || this.debtPlans[0] || null
+        
+      } catch (error) {
+        console.error('Error fetching debt plans:', error)
+        this.error = 'Failed to load your debt plans. Please try again.'
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    async createPlan() {
+      this.createLoading = true
+      this.createError = null
+      
+      try {
+        const response = await api.post('/DebtPlan/create_plan/', {
+          name: this.newPlan.name,
+          strategy: this.newPlan.strategy,
+          monthly_payment_budget: this.newPlan.monthly_payment_budget
+        })
+        
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to create debt plan')
+        }
+        
+        const data = await response.json()
+        
+        // Add new plan to list
+        this.debtPlans.push(data)
+        
+        // If this is the first plan, set it as active
+        if (this.debtPlans.length === 1) {
+          this.activePlan = data
+        }
+        
+        // Reset form and close modal
+        this.newPlan = {
+          name: '',
+          strategy: 'snowball',
+          monthly_payment_budget: ''
+        }
+        this.showCreatePlanModal = false
+        
+        // Show success message
+        this.showNotification('Debt plan created successfully!', 'success')
+        
+      } catch (error) {
+        console.error('Error creating plan:', error)
+        this.createError = error.message || 'Failed to create debt plan'
+      } finally {
+        this.createLoading = false
+      }
+    },
+    
+    editPlan(plan) {
+      this.editingPlan = {
+        id: plan.id,
+        name: plan.name,
+        monthly_payment_budget: plan.monthly_payment_budget
+      }
+      this.showEditPlanModal = true
+    },
+    
+    async updatePlan() {
+      this.updateLoading = true
+      this.updateError = null
+      
+      try {
+        const response = await api.patch(`/DebtPlan/update_plan/${this.editingPlan.id}/`, {
+          name: this.editingPlan.name,
+          monthly_payment_budget: this.editingPlan.monthly_payment_budget
+        })
+        
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to update debt plan')
+        }
+        
+        const data = await response.json()
+        
+        // Update plan in list
+        const index = this.debtPlans.findIndex(p => p.id === data.id)
+        if (index !== -1) {
+          this.debtPlans[index] = data
+        }
+        
+        // Update active plan if needed
+        if (this.activePlan?.id === data.id) {
+          this.activePlan = data
+        }
+        
+        this.showEditPlanModal = false
+        
+        this.showNotification('Debt plan updated successfully!', 'success')
+        
+      } catch (error) {
+        console.error('Error updating plan:', error)
+        this.updateError = error.message || 'Failed to update debt plan'
+      } finally {
+        this.updateLoading = false
+      }
+    },
+    
+    async viewPlan(planId) {
+      try {
+        const response = await api.get(`/DebtPlan/get_debt_plan/${planId}/`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch plan details')
+        }
+        
+        const data = await response.json()
+        console.log('Plan details:', data)
+        
+        // You can navigate to a detailed view or show a modal
+        // For now, just log the data
+        
+      } catch (error) {
+        console.error('Error viewing plan:', error)
+      }
+    },
+
+    setActivePlan(plan) {
+      this.activePlan = plan
+    },
+
+    getStrategyIcon(strategy) {
+      return strategy === 'snowball' ? 'fas fa-snowflake' : 'fas fa-mountain'
+    },
+
+    formatCurrency(amount) {
+      if (!amount) return '0.00'
+      return parseFloat(amount).toFixed(2)
+    },
+    
+    formatDate(dateString) {
+      if (!dateString) return 'N/A'
+      const date = new Date(dateString)
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    },
+
+    showNotification(message, type = 'info') {
+      // You can integrate with a notification library like vue-notification
+      // For now, using a simple alert or console log
+      console.log(`${type}: ${message}`)
+      if (this.$notify) {
+        this.$notify({
+          title: type === 'success' ? 'Success' : 'Info',
+          text: message,
+          type: type
+        })
+      }
+    },
+    
     async handleLogout() {
       const authStore = useAuthStore()
       authStore.logout()
       this.$router.push('/')
     },
+    
     addDebt() {
       console.log('Add debt clicked')
-      // Navigate to add debt page or open modal
-    },
-    recordPayment() {
-      console.log('Record payment clicked')
-    },
-    viewReport() {
-      console.log('View report clicked')
-    },
-    changeStrategy() {
-      console.log('Change strategy clicked')
+      // Navigate to add debt page
     }
   },
   mounted() {
     const authStore = useAuthStore()
     this.user = authStore.getUser
+    this.fetchDebtPlans()
   }
 }
 </script>
@@ -328,6 +645,7 @@ export default {
   50% { opacity: 0.8; }
 }
 
+/* Header Styles */
 header {
   display: flex;
   justify-content: space-between;
@@ -336,7 +654,7 @@ header {
   position: fixed;
   width: 100%;
   z-index: 1000;
-  background: rgba(10, 10, 26, 0.8);
+  background: rgba(10, 10, 26, 0.95);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(0, 245, 255, 0.2);
 }
@@ -397,24 +715,20 @@ nav ul li a.active::after {
   gap: 0.5rem;
   color: var(--light);
   font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.user-info:hover {
+  background: rgba(0, 245, 255, 0.1);
 }
 
 .user-info i {
   font-size: 1.5rem;
   color: var(--primary);
 }
-
-.user-info.clickable {
-    cursor: pointer;
-    transition: all 0.3s ease;
-    padding: 0.5rem;
-    border-radius: 8px;
-  }
-
-.user-info.clickable:hover {
-    background: rgba(0, 245, 255, 0.1);
-    transform: translateY(-2px);
-  }
 
 .btn {
   padding: 0.7rem 1.5rem;
@@ -456,6 +770,12 @@ nav ul li a.active::after {
   font-size: 0.85rem;
 }
 
+.btn-large {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+
+/* Main Content */
 .dashboard-main {
   padding: 8rem 5% 4rem;
 }
@@ -465,11 +785,70 @@ nav ul li a.active::after {
   margin: 0 auto;
 }
 
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(0, 245, 255, 0.3);
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  color: var(--gray);
+  font-size: 1.1rem;
+}
+
+/* Error State */
+.error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--light);
+}
+
+.error-state i {
+  font-size: 3rem;
+  color: #ff6b6b;
+  margin-bottom: 1rem;
+}
+
+.error-state h3 {
+  margin-bottom: 0.5rem;
+}
+
+.error-state p {
+  color: var(--gray);
+  margin-bottom: 2rem;
+}
+
+/* Empty Dashboard State */
+.empty-dashboard {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
 .welcome-section {
+  text-align: center;
   margin-bottom: 3rem;
 }
 
-.welcome-content h1 {
+.welcome-section h1 {
   font-size: 2.5rem;
   margin-bottom: 0.5rem;
   background: linear-gradient(to right, var(--primary), var(--accent));
@@ -478,9 +857,80 @@ nav ul li a.active::after {
   color: transparent;
 }
 
-.welcome-content p {
+.welcome-section p {
   color: var(--gray);
   font-size: 1.1rem;
+}
+
+.onboarding-card {
+  background: var(--card-bg);
+  border-radius: 20px;
+  padding: 3rem;
+  text-align: center;
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.onboarding-icon {
+  font-size: 4rem;
+  color: var(--primary);
+  margin-bottom: 1.5rem;
+}
+
+.onboarding-card h2 {
+  color: var(--light);
+  margin-bottom: 1rem;
+  font-size: 1.8rem;
+}
+
+.onboarding-card p {
+  color: var(--gray);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.info-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.info-card {
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 15px;
+  padding: 1.5rem;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.info-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--primary);
+}
+
+.info-card i {
+  font-size: 2rem;
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.info-card h4 {
+  color: var(--light);
+  margin-bottom: 0.5rem;
+}
+
+.info-card p {
+  color: var(--gray);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* Dashboard Content */
+.dashboard-content .welcome-section.with-stats {
+  text-align: left;
+  margin-bottom: 3rem;
 }
 
 .quick-stats {
@@ -506,8 +956,18 @@ nav ul li a.active::after {
   box-shadow: 0 10px 30px rgba(0, 245, 255, 0.2);
 }
 
-.stat-card i {
-  font-size: 2.5rem;
+.stat-icon {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 245, 255, 0.1);
+  border-radius: 12px;
+}
+
+.stat-icon i {
+  font-size: 1.5rem;
   color: var(--primary);
 }
 
@@ -528,10 +988,7 @@ nav ul li a.active::after {
   font-weight: 700;
 }
 
-.stat-value.success {
-  color: #10b981;
-}
-
+/* Dashboard Grid */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -540,7 +997,7 @@ nav ul li a.active::after {
 
 .dashboard-card {
   background: var(--card-bg);
-  border-radius: 15px;
+  border-radius: 20px;
   border: 1px solid rgba(0, 245, 255, 0.2);
   padding: 2rem;
   transition: all 0.3s ease;
@@ -548,6 +1005,8 @@ nav ul li a.active::after {
 
 .dashboard-card:hover {
   border-color: rgba(0, 245, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
 .full-width {
@@ -575,31 +1034,44 @@ nav ul li a.active::after {
   color: var(--primary);
 }
 
+/* Strategy Card */
 .strategy-display {
   margin-bottom: 1.5rem;
 }
 
 .strategy-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-weight: 600;
   margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 .strategy-badge.snowball {
   background: rgba(0, 245, 255, 0.2);
   color: var(--primary);
+  border: 1px solid rgba(0, 245, 255, 0.3);
 }
 
 .strategy-badge.avalanche {
   background: rgba(138, 43, 226, 0.2);
   color: var(--secondary);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+}
+
+.plan-name {
+  color: var(--light);
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
 }
 
 .strategy-description {
   color: var(--gray);
   line-height: 1.6;
+  margin-bottom: 1.5rem;
 }
 
 .strategy-stats {
@@ -612,6 +1084,12 @@ nav ul li a.active::after {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stat-item:last-child {
+  border-bottom: none;
 }
 
 .stat-item .label {
@@ -624,177 +1102,183 @@ nav ul li a.active::after {
   font-size: 1.1rem;
 }
 
-.progress-circle {
-  position: relative;
-  width: 200px;
-  height: 200px;
-  margin: 0 auto 1.5rem;
-}
-
-.progress-circle svg {
-  transform: rotate(-90deg);
-}
-
-.progress-bg {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.1);
-  stroke-width: 8;
-}
-
-.progress-bar {
-  fill: none;
-  stroke: var(--primary);
-  stroke-width: 8;
-  stroke-linecap: round;
-  stroke-dasharray: 283;
-  transition: stroke-dashoffset 1s ease;
-  filter: drop-shadow(0 0 10px var(--primary));
-}
-
-.progress-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-}
-
-.progress-percent {
-  display: block;
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.progress-label {
-  display: block;
-  color: var(--gray);
-  font-size: 0.9rem;
-}
-
-.progress-message {
-  text-align: center;
-  color: var(--gray);
-  line-height: 1.6;
-}
-
-.progress-message strong {
-  color: var(--primary);
-}
-
+/* Actions Card */
 .action-btn {
   display: flex;
   align-items: center;
   gap: 1rem;
   width: 100%;
-  padding: 1rem;
-  background: rgba(0, 245, 255, 0.1);
+  padding: 1.5rem;
+  background: rgba(0, 245, 255, 0.05);
   border: 1px solid rgba(0, 245, 255, 0.2);
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--light);
   cursor: pointer;
   transition: all 0.3s ease;
   margin-bottom: 1rem;
+  text-align: left;
 }
 
 .action-btn:hover {
-  background: rgba(0, 245, 255, 0.2);
+  background: rgba(0, 245, 255, 0.1);
   transform: translateX(5px);
+  border-color: var(--primary);
 }
 
-.action-btn i {
+.action-btn:last-child {
+  margin-bottom: 0;
+}
+
+.action-icon {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 245, 255, 0.1);
+  border-radius: 10px;
+}
+
+.action-icon i {
   color: var(--primary);
   font-size: 1.5rem;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
+.action-text {
+  flex: 1;
 }
 
-.empty-state i {
-  font-size: 4rem;
+.action-title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.action-desc {
+  display: block;
   color: var(--gray);
-  margin-bottom: 1rem;
-  opacity: 0.5;
+  font-size: 0.9rem;
 }
 
-.empty-state h3 {
-  color: var(--light);
-  margin-bottom: 0.5rem;
-}
-
-.empty-state p {
-  color: var(--gray);
-  margin-bottom: 1.5rem;
-}
-
-.debts-list {
+/* Plans Card */
+.plans-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.debt-item {
+.plan-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem;
   background: rgba(0, 245, 255, 0.05);
   border: 1px solid rgba(0, 245, 255, 0.2);
-  border-radius: 10px;
+  border-radius: 12px;
   transition: all 0.3s ease;
+  cursor: pointer;
 }
 
-.debt-item:hover {
+.plan-item:hover {
   background: rgba(0, 245, 255, 0.1);
   transform: translateX(5px);
+  border-color: rgba(0, 245, 255, 0.3);
 }
 
-.debt-info {
+.plan-item.active {
+  border-color: var(--primary);
+  background: rgba(0, 245, 255, 0.1);
+}
+
+.plan-main {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
   flex: 1;
 }
 
-.debt-info h3 {
+.plan-info {
+  flex: 1;
+}
+
+.plan-info h3 {
   color: var(--light);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
 }
 
-.debt-type {
-  color: var(--gray);
-  font-size: 0.85rem;
+.plan-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
-.debt-details {
+.plan-strategy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.plan-strategy.snowball {
+  background: rgba(0, 245, 255, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(0, 245, 255, 0.3);
+}
+
+.plan-strategy.avalanche {
+  background: rgba(138, 43, 226, 0.1);
+  color: var(--secondary);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+}
+
+.active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.plan-details {
   display: flex;
   gap: 2rem;
-  flex: 2;
 }
 
 .detail {
   display: flex;
   flex-direction: column;
+  align-items: center;
 }
 
 .detail-label {
   color: var(--gray);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   margin-bottom: 0.25rem;
 }
 
 .detail-value {
   color: var(--light);
   font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.debt-actions {
+.plan-actions {
   display: flex;
   gap: 0.5rem;
 }
 
 .btn-icon {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -809,72 +1293,205 @@ nav ul li a.active::after {
 .btn-icon:hover {
   background: var(--primary);
   color: var(--dark);
+  transform: scale(1.1);
 }
 
-.payments-timeline {
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.payment-item {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1rem;
-  background: rgba(0, 245, 255, 0.05);
-  border: 1px solid rgba(0, 245, 255, 0.2);
-  border-radius: 10px;
-}
-
-.payment-date {
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  background: var(--primary);
-  color: var(--dark);
+  z-index: 2000;
+  padding: 2rem;
+}
+
+.modal-content {
+  background: var(--card-bg);
+  border-radius: 20px;
+  border: 1px solid rgba(0, 245, 255, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 2rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h2 {
+  color: var(--light);
+  margin: 0;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--gray);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--light);
+}
+
+.modal-content form {
+  padding: 1rem 2rem 2rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  color: var(--light);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 10px;
-  font-weight: 700;
+  color: var(--light);
+  font-size: 1rem;
+  transition: all 0.3s ease;
 }
 
-.payment-date .month {
-  font-size: 0.75rem;
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.2);
 }
 
-.payment-date .day {
+.input-with-symbol {
+  position: relative;
+}
+
+.input-symbol {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray);
+  font-weight: 600;
+}
+
+.input-with-symbol input {
+  padding-left: 2.5rem;
+}
+
+.strategy-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.strategy-option {
+  display: block;
+  cursor: pointer;
+}
+
+.strategy-option input {
+  display: none;
+}
+
+.option-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.strategy-option.selected .option-content {
+  border-color: var(--primary);
+  background: rgba(0, 245, 255, 0.1);
+}
+
+.option-content i {
   font-size: 1.5rem;
+  color: var(--primary);
 }
 
-.payment-info {
-  flex: 1;
+.option-text {
+  display: flex;
+  flex-direction: column;
 }
 
-.payment-info h4 {
+.option-text strong {
   color: var(--light);
   margin-bottom: 0.25rem;
 }
 
-.payment-info p {
+.option-text span {
   color: var(--gray);
   font-size: 0.9rem;
 }
 
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+}
+
+/* Responsive Design */
 @media (max-width: 1024px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
   
-  .debt-item {
+  .plan-main {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
   }
   
-  .debt-details {
+  .plan-details {
     width: 100%;
+    justify-content: space-between;
   }
 }
 
@@ -882,30 +1499,52 @@ nav ul li a.active::after {
   header {
     flex-direction: column;
     gap: 1rem;
+    padding: 1rem 5%;
   }
   
   nav ul {
     gap: 1rem;
   }
   
-  .welcome-content h1 {
-    font-size: 1.8rem;
+  .user-menu {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .dashboard-main {
+    padding: 7rem 5% 2rem;
+  }
+  
+  .welcome-section h1 {
+    font-size: 2rem;
   }
   
   .quick-stats {
     grid-template-columns: 1fr;
   }
   
-  .debt-details {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  .payment-item {
+  .plan-item {
     flex-direction: column;
     align-items: flex-start;
+    gap: 1rem;
   }
-
   
+  .plan-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .modal-overlay {
+    padding: 1rem;
+  }
+  
+  .modal-content {
+    margin: 0;
+  }
+  
+  .modal-header,
+  .modal-content form {
+    padding: 1.5rem;
+  }
 }
 </style>
