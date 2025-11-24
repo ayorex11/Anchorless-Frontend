@@ -9,7 +9,7 @@
       <nav>
         <ul>
           <li><router-link to="/dashboard" class="active">Dashboard</router-link></li>
-          <li><a href="#debts">My Debts</a></li>
+          <li><a href="#debts" @click.prevent="showMyDebts = true">My Debts</a></li>
           <li><a href="#strategy">Strategy</a></li>
           <li><a href="#progress">Progress</a></li>
         </ul>
@@ -173,13 +173,13 @@
                     <span class="action-desc">Start a new strategy</span>
                   </div>
                 </button>
-                <button class="action-btn" @click="$router.push('/learn-more')">
+                <button class="action-btn" @click="showMyDebts = true">
                   <div class="action-icon">
-                    <i class="fas fa-graduation-cap"></i>
+                    <i class="fas fa-file-invoice-dollar"></i>
                   </div>
                   <div class="action-text">
-                    <span class="action-title">Learn Strategies</span>
-                    <span class="action-desc">Understand methods</span>
+                    <span class="action-title">View My Debts</span>
+                    <span class="action-desc">Manage all loans</span>
                   </div>
                 </button>
               </div>
@@ -491,6 +491,302 @@
       </div>
     </div>
 
+    <!-- My Debts Modal -->
+    <div v-if="showMyDebts" class="modal-overlay" @click="showMyDebts = false">
+      <div class="modal-content large-modal" @click.stop>
+        <div class="modal-header">
+          <h2>My Debts</h2>
+          <button class="close-btn" @click="showMyDebts = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <!-- Search and Filter Section -->
+        <div class="search-section">
+          <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input 
+              type="text" 
+              v-model="searchQuery" 
+              placeholder="Search by debt plan, loan name, or date..."
+              @input="filterLoans"
+            >
+          </div>
+          <button class="btn btn-primary" @click="showAddDebtModal = true; showMyDebts = false;">
+            <i class="fas fa-plus"></i> Add New Debt
+          </button>
+        </div>
+
+        <!-- Loading State -->
+        <div v-if="loansLoading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading your debts...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else-if="loansError" class="error-state">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Failed to load debts</h3>
+          <p>{{ loansError }}</p>
+          <button class="btn btn-primary" @click="fetchLoans">Try Again</button>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="filteredLoans.length === 0" class="empty-state">
+          <i class="fas fa-file-invoice-dollar"></i>
+          <h3>No debts found</h3>
+          <p v-if="searchQuery">No debts match your search criteria.</p>
+          <p v-else>You haven't added any debts yet.</p>
+          <button class="btn btn-primary" @click="showAddDebtModal = true; showMyDebts = false;">
+            <i class="fas fa-plus"></i> Add Your First Debt
+          </button>
+        </div>
+
+        <!-- Loans List -->
+        <div v-else class="loans-list">
+          <div class="loans-grid">
+            <div 
+              v-for="loan in filteredLoans" 
+              :key="loan.id" 
+              class="loan-card"
+            >
+              <div class="loan-header">
+                <h3>{{ loan.name }}</h3>
+                <div class="loan-actions">
+                  <button class="btn-icon" @click="viewLoan(loan)" title="View Details">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  <button class="btn-icon" @click="editLoan(loan)" title="Edit Loan">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn-icon btn-danger" @click="confirmDeleteLoan(loan)" title="Delete Loan">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="loan-details">
+                <div class="detail-row">
+                  <span class="label">Debt Plan:</span>
+                  <span class="value">{{ loan.debt_plan_name || loan.debt_plan }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Principal Balance:</span>
+                  <span class="value">${{ parseFloat(loan.principal_balance).toLocaleString() }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Remaining Balance:</span>
+                  <span class="value">${{ parseFloat(loan.remaining_balance).toLocaleString() }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Interest Rate:</span>
+                  <span class="value">{{ loan.interest_rate }}%</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Minimum Payment:</span>
+                  <span class="value">${{ parseFloat(loan.minimum_payment).toLocaleString() }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Due Date:</span>
+                  <span class="value">{{ loan.due_date }}th of month</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Payoff Order:</span>
+                  <span class="value">#{{ loan.payoff_order }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Created:</span>
+                  <span class="value">{{ formatDate(loan.created_at) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Loan Modal -->
+    <div v-if="showViewLoanModal" class="modal-overlay" @click="showViewLoanModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Loan Details</h2>
+          <button class="close-btn" @click="showViewLoanModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div v-if="selectedLoan" class="loan-details-full">
+          <div class="detail-section">
+            <h3>Basic Information</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="label">Loan Name:</span>
+                <span class="value">{{ selectedLoan.name }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Debt Plan:</span>
+                <span class="value">{{ selectedLoan.debt_plan_name || selectedLoan.debt_plan }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Principal Balance:</span>
+                <span class="value">${{ parseFloat(selectedLoan.principal_balance).toLocaleString() }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Remaining Balance:</span>
+                <span class="value">${{ parseFloat(selectedLoan.remaining_balance).toLocaleString() }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="detail-section">
+            <h3>Payment Details</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="label">Interest Rate:</span>
+                <span class="value">{{ selectedLoan.interest_rate }}%</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Minimum Payment:</span>
+                <span class="value">${{ parseFloat(selectedLoan.minimum_payment).toLocaleString() }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Due Date:</span>
+                <span class="value">{{ selectedLoan.due_date }}th of month</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Manual Minimum Payment:</span>
+                <span class="value">{{ selectedLoan.manually_set_minimum_payment ? 'Yes' : 'No' }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="detail-section">
+            <h3>Strategy Information</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="label">Payoff Order:</span>
+                <span class="value">#{{ selectedLoan.payoff_order }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Created:</span>
+                <span class="value">{{ formatDate(selectedLoan.created_at) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Last Updated:</span>
+                <span class="value">{{ formatDate(selectedLoan.updated_at) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" @click="showViewLoanModal = false">
+            Close
+          </button>
+          <button class="btn btn-primary" @click="editLoan(selectedLoan); showViewLoanModal = false;">
+            <i class="fas fa-edit"></i> Edit Loan
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Loan Modal -->
+    <div v-if="showEditLoanModal" class="modal-overlay" @click="showEditLoanModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Edit Loan</h2>
+          <button class="close-btn" @click="showEditLoanModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <form @submit.prevent="updateLoan">
+          <div class="form-group">
+            <label for="editLoanName">Loan Name</label>
+            <input 
+              type="text" 
+              id="editLoanName" 
+              v-model="editingLoan.name" 
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label for="editDueDate">Due Date (Day of Month)</label>
+            <input 
+              type="number" 
+              id="editDueDate" 
+              v-model="editingLoan.due_date" 
+              placeholder="1-31"
+              min="1"
+              max="31"
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input 
+                type="checkbox" 
+                v-model="editingLoan.manually_set_minimum_payment"
+              >
+              <span class="checkmark"></span>
+              Set minimum payment manually
+            </label>
+          </div>
+          <div v-if="editingLoan.manually_set_minimum_payment" class="form-group">
+            <label for="editMinimumPayment">Minimum Payment</label>
+            <div class="input-with-symbol">
+              <span class="input-symbol">$</span>
+              <input 
+                type="number" 
+                id="editMinimumPayment" 
+                v-model="editingLoan.minimum_payment" 
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                required
+              >
+            </div>
+          </div>
+          <div v-if="loanUpdateError" class="alert alert-error">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>{{ loanUpdateError }}</span>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" @click="showEditLoanModal = false">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="loanUpdateLoading">
+              <span v-if="!loanUpdateLoading">Update Loan</span>
+              <span v-else><i class="fas fa-spinner fa-spin"></i> Updating...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteConfirmModal" class="modal-overlay" @click="showDeleteConfirmModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Delete Loan</h2>
+          <button class="close-btn" @click="showDeleteConfirmModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="delete-confirmation">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Are you sure?</h3>
+          <p>You are about to delete the loan "<strong>{{ loanToDelete?.name }}</strong>". This action cannot be undone.</p>
+          <div class="modal-actions">
+            <button class="btn btn-outline" @click="showDeleteConfirmModal = false">
+              Cancel
+            </button>
+            <button class="btn btn-danger" @click="deleteLoan" :disabled="loanDeleteLoading">
+              <span v-if="!loanDeleteLoading">Delete Loan</span>
+              <span v-else><i class="fas fa-spinner fa-spin"></i> Deleting...</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Throttling Notification -->
     <div v-if="showThrottleNotification" class="throttle-notification">
       <div class="notification-content">
@@ -549,6 +845,28 @@ export default {
         minimum_payment: '',
         due_date: '',
         manually_set_minimum_payment: false
+      },
+      // New data properties for loans management
+      showMyDebts: false,
+      loans: [],
+      filteredLoans: [],
+      loansLoading: false,
+      loansError: null,
+      searchQuery: '',
+      selectedLoan: null,
+      loanToDelete: null,
+      showViewLoanModal: false,
+      showEditLoanModal: false,
+      showDeleteConfirmModal: false,
+      loanUpdateLoading: false,
+      loanUpdateError: null,
+      loanDeleteLoading: false,
+      editingLoan: {
+        id: null,
+        name: '',
+        minimum_payment: '',
+        due_date: '',
+        manually_set_minimum_payment: false
       }
     }
   },
@@ -593,6 +911,10 @@ export default {
         
         // Set active plan (first active plan, or first plan if none active)
         this.activePlan = this.debtPlans.find(plan => plan.is_active) || this.debtPlans[0] || null
+
+        if (this.loans.length > 0) {
+          await this.mapDebtPlanNames()
+        }
         
       } catch (error) {
         console.error('Error fetching debt plans:', error)
@@ -632,7 +954,7 @@ export default {
         if (this.debtPlans.length === 1) {
           this.activePlan = data
         }
-        
+        await this.fetchDebtPlans()
         // Reset form and close modal
         this.newPlan = {
           name: '',
@@ -693,6 +1015,8 @@ export default {
         if (this.activePlan?.id === data.id) {
           this.activePlan = data
         }
+
+        await this.fetchDebtPlans()
         
         this.showEditPlanModal = false
         
@@ -743,6 +1067,10 @@ export default {
         // Reset form and close modal
         this.resetLoanForm()
         this.showAddDebtModal = false
+
+        if (this.showMyDebts) {
+          await this.fetchLoans()
+        }
         
         // Show success message
         this.showNotification('Loan added successfully!', 'success')
@@ -839,12 +1167,210 @@ export default {
     
     addDebt() {
       this.showAddDebtModal = true
+    },
+
+    // New methods for loans management
+    async fetchLoans() {
+      this.loansLoading = true
+      this.loansError = null
+      
+      try {
+        const response = await api.get('/Loan/list_loan/')
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch loans')
+        }
+        
+        const data = await response.json()
+        this.loans = data
+        this.filteredLoans = data
+        
+        // Map debt plan names
+        await this.mapDebtPlanNames()
+        
+      } catch (error) {
+        console.error('Error fetching loans:', error)
+        this.loansError = 'Failed to load your loans. Please try again.'
+      } finally {
+        this.loansLoading = false
+      }
+    },
+
+    async mapDebtPlanNames() {
+      // Create a map of debt plan IDs to names
+      const debtPlanMap = {}
+      for (const plan of this.debtPlans) {
+        debtPlanMap[plan.id] = plan.name
+      }
+      
+      // Update loans with debt plan names
+      this.loans = this.loans.map(loan => ({
+        ...loan,
+        debt_plan_name: debtPlanMap[loan.debt_plan]
+      }))
+      this.filteredLoans = [...this.loans]
+    },
+
+    filterLoans() {
+      if (!this.searchQuery.trim()) {
+        this.filteredLoans = [...this.loans]
+        return
+      }
+
+      const query = this.searchQuery.toLowerCase().trim()
+      this.filteredLoans = this.loans.filter(loan => 
+        loan.name.toLowerCase().includes(query) ||
+        (loan.debt_plan_name && loan.debt_plan_name.toLowerCase().includes(query)) ||
+        this.formatDate(loan.created_at).toLowerCase().includes(query)
+      )
+    },
+
+    async viewLoan(loan) {
+      try {
+        const response = await api.get(`/Loan/get_loan/${loan.id}/`)
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch loan details')
+        }
+        
+        const data = await response.json()
+        this.selectedLoan = data
+        this.showViewLoanModal = true
+        
+      } catch (error) {
+        console.error('Error viewing loan:', error)
+        this.showNotification('Failed to load loan details', 'error')
+      }
+    },
+
+    editLoan(loan) {
+      this.editingLoan = {
+        id: loan.id,
+        name: loan.name,
+        minimum_payment: loan.minimum_payment,
+        due_date: loan.due_date,
+        manually_set_minimum_payment: loan.manually_set_minimum_payment
+      }
+      this.showEditLoanModal = true
+    },
+
+    async updateLoan() {
+      this.loanUpdateLoading = true
+      this.loanUpdateError = null
+      
+      try {
+        const updateData = {
+          name: this.editingLoan.name,
+          due_date: parseInt(this.editingLoan.due_date),
+          manually_set_minimum_payment: this.editingLoan.manually_set_minimum_payment
+        }
+
+        // Only include minimum_payment if manually set
+        if (this.editingLoan.manually_set_minimum_payment) {
+          updateData.minimum_payment = this.editingLoan.minimum_payment
+        }
+
+        const response = await api.patch(`/Loan/update/${this.editingLoan.id}/`, updateData)
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to update loan')
+        }
+        
+        const data = await response.json()
+
+        await this.fetchLoans()
+        
+        // Update loan in list
+        const index = this.loans.findIndex(loan => loan.id === data.id)
+        if (index !== -1) {
+          this.loans[index] = { ...this.loans[index], ...data }
+          await this.mapDebtPlanNames()
+        }
+        
+        this.showEditLoanModal = false
+        this.showNotification('Loan updated successfully!', 'success')
+        
+      } catch (error) {
+        console.error('Error updating loan:', error)
+        this.loanUpdateError = error.message || 'Failed to update loan'
+      } finally {
+        this.loanUpdateLoading = false
+      }
+    },
+
+    confirmDeleteLoan(loan) {
+      this.loanToDelete = loan
+      this.showDeleteConfirmModal = true
+    },
+
+    async deleteLoan() {
+      this.loanDeleteLoading = true
+      
+      try {
+        const response = await api.delete(`/Loan/delete/${this.loanToDelete.id}/`)
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
+        if (!response.ok) {
+          throw new Error('Failed to delete loan')
+        }
+
+        await this.fetchLoans()
+        
+        // Remove loan from list
+        this.loans = this.loans.filter(loan => loan.id !== this.loanToDelete.id)
+        this.filteredLoans = this.filteredLoans.filter(loan => loan.id !== this.loanToDelete.id)
+        
+        this.showDeleteConfirmModal = false
+        this.loanToDelete = null
+        this.showNotification('Loan deleted successfully!', 'success')
+        
+      } catch (error) {
+        console.error('Error deleting loan:', error)
+        this.showNotification('Failed to delete loan', 'error')
+      } finally {
+        this.loanDeleteLoading = false
+      }
     }
   },
   mounted() {
     const authStore = useAuthStore()
     this.user = authStore.getUser
     this.fetchDebtPlans()
+  },
+  watch: {
+    debtPlans: {
+      handler() {
+        if (this.loans.length > 0) {
+          this.mapDebtPlanNames()
+        }
+      },
+      deep: true
+    },
+    showMyDebts(val) {
+      if (val) {
+        this.fetchLoans()
+      }
+    }
   }
 }
 </script>
@@ -1010,6 +1536,16 @@ nav ul li a.active::after {
 .btn-large {
   padding: 1rem 2rem;
   font-size: 1.1rem;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
 }
 
 /* Main Content */
@@ -1533,6 +2069,16 @@ nav ul li a.active::after {
   transform: scale(1.1);
 }
 
+.btn-icon.btn-danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-icon.btn-danger:hover {
+  background: #ef4444;
+  color: white;
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -1558,6 +2104,10 @@ nav ul li a.active::after {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.large-modal {
+  max-width: 900px;
 }
 
 .modal-header {
@@ -1621,6 +2171,17 @@ nav ul li a.active::after {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.2);
+}
+
+/* Fix for white dropdown background */
+.form-group select {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--light) !important;
+}
+
+.form-group select option {
+  background: var(--card-bg);
+  color: var(--light);
 }
 
 .input-with-symbol {
@@ -1759,6 +2320,192 @@ nav ul li a.active::after {
   margin-top: 2rem;
 }
 
+/* Search Section */
+.search-section {
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-bar {
+  position: relative;
+  flex: 1;
+}
+
+.search-bar i {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray);
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  color: var(--light);
+  font-size: 1rem;
+}
+
+.search-bar input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Loans Grid */
+.loans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.loan-card {
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.loan-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 245, 255, 0.2);
+}
+
+.loan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.loan-header h3 {
+  color: var(--light);
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.loan-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.loan-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0;
+}
+
+.detail-row .label {
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.detail-row .value {
+  color: var(--light);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--light);
+}
+
+.empty-state i {
+  font-size: 3rem;
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: var(--gray);
+  margin-bottom: 2rem;
+}
+
+/* Loan Details Full */
+.loan-details-full {
+  padding: 0 2rem;
+}
+
+.detail-section {
+  margin-bottom: 2rem;
+}
+
+.detail-section h3 {
+  color: var(--light);
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.5rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-item .label {
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.detail-item .value {
+  color: var(--light);
+  font-weight: 500;
+}
+
+/* Delete Confirmation */
+.delete-confirmation {
+  text-align: center;
+  padding: 2rem;
+}
+
+.delete-confirmation i {
+  font-size: 3rem;
+  color: #ef4444;
+  margin-bottom: 1rem;
+}
+
+.delete-confirmation h3 {
+  color: var(--light);
+  margin-bottom: 1rem;
+}
+
+.delete-confirmation p {
+  color: var(--gray);
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
 /* Throttling Notification */
 .throttle-notification {
   position: fixed;
@@ -1889,6 +2636,28 @@ nav ul li a.active::after {
   .modal-header,
   .modal-content form {
     padding: 1.5rem;
+  }
+  
+  .search-section {
+    flex-direction: column;
+  }
+  
+  .loans-grid {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+  
+  .loan-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .loan-actions {
+    align-self: flex-end;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
   }
   
   .throttle-notification {
