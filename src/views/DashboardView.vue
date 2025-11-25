@@ -40,6 +40,17 @@
           <p>{{ error }}</p>
           <button class="btn btn-primary" @click="fetchDebtPlans">Try Again</button>
         </div>
+        
+        <div v-if="notificationSuccess" class="alert-notification alert-success">
+          <i class="fas fa-check-circle"></i>
+          <span>{{ notificationSuccess }}</span>
+        </div>
+
+        <div v-if="notificationError" class="alert-notification alert-error">
+          <i class="fas fa-exclamation-circle"></i>
+          <span>{{ notificationError }}</span>
+        </div>
+        
 
         <!-- No Debt Plan State -->
         <div v-else-if="!hasDebtPlan" class="empty-dashboard">
@@ -443,9 +454,9 @@
               type="number" 
               id="dueDate" 
               v-model="newLoan.due_date" 
-              placeholder="1-31"
+              placeholder="1-28"
               min="1"
-              max="31"
+              max="28"
               required
             >
           </div>
@@ -827,6 +838,8 @@ export default {
       updateError: null,
       loanLoading: false,
       loanError: null,
+      notificationSuccess: null,
+      notificationError: null,
       newPlan: {
         name: '',
         strategy: 'snowball',
@@ -890,6 +903,13 @@ export default {
     }
   },
   methods: {
+    async initializeData() {
+      await Promise.all([
+        this.fetchDebtPlans(),
+        this.fetchLoans()
+      ])
+    },
+
     async fetchDebtPlans() {
       this.loading = true
       this.error = null
@@ -907,10 +927,15 @@ export default {
         }
         
         const data = await response.json()
-        this.debtPlans = data
+        
+        // Use array spread for reactivity
+        this.debtPlans = [...data]
         
         // Set active plan (first active plan, or first plan if none active)
         this.activePlan = this.debtPlans.find(plan => plan.is_active) || this.debtPlans[0] || null
+
+        // Recalculate total debt whenever plans change
+        this.calculateTotalDebt()
 
         if (this.loans.length > 0) {
           await this.mapDebtPlanNames()
@@ -945,16 +970,9 @@ export default {
           throw new Error(data.error || 'Failed to create debt plan')
         }
         
-        const data = await response.json()
-        
-        // Add new plan to list
-        this.debtPlans.push(data)
-        
-        // If this is the first plan, set it as active
-        if (this.debtPlans.length === 1) {
-          this.activePlan = data
-        }
+        // Instead of manually pushing, refetch all plans to ensure consistency
         await this.fetchDebtPlans()
+        
         // Reset form and close modal
         this.newPlan = {
           name: '',
@@ -1003,23 +1021,10 @@ export default {
           throw new Error(data.error || 'Failed to update debt plan')
         }
         
-        const data = await response.json()
-        
-        // Update plan in list
-        const index = this.debtPlans.findIndex(p => p.id === data.id)
-        if (index !== -1) {
-          this.debtPlans[index] = data
-        }
-        
-        // Update active plan if needed
-        if (this.activePlan?.id === data.id) {
-          this.activePlan = data
-        }
-
+        // Refetch all plans instead of manually updating
         await this.fetchDebtPlans()
         
         this.showEditPlanModal = false
-        
         this.showNotification('Debt plan updated successfully!', 'success')
         
       } catch (error) {
@@ -1062,15 +1067,15 @@ export default {
           throw new Error(data.error || 'Failed to create loan')
         }
         
-        const data = await response.json()
-        
         // Reset form and close modal
         this.resetLoanForm()
         this.showAddDebtModal = false
 
-        if (this.showMyDebts) {
-          await this.fetchLoans()
-        }
+        // Always refresh loans data
+        await this.fetchLoans()
+        
+        // Also refresh debt plans to get updated calculations
+        await this.fetchDebtPlans()
         
         // Show success message
         this.showNotification('Loan added successfully!', 'success')
@@ -1111,9 +1116,6 @@ export default {
         const data = await response.json()
         console.log('Plan details:', data)
         
-        // You can navigate to a detailed view or show a modal
-        // For now, just log the data
-        
       } catch (error) {
         console.error('Error viewing plan:', error)
       }
@@ -1121,6 +1123,7 @@ export default {
 
     setActivePlan(plan) {
       this.activePlan = plan
+      this.calculateTotalDebt()
     },
 
     getStrategyIcon(strategy) {
@@ -1146,17 +1149,19 @@ export default {
       }, 5000)
     },
 
-    showNotification(message, type = 'info') {
-      // You can integrate with a notification library like vue-notification
-      // For now, using a simple alert or console log
-      console.log(`${type}: ${message}`)
-      if (this.$notify) {
-        this.$notify({
-          title: type === 'success' ? 'Success' : 'Info',
-          text: message,
-          type: type
-        })
+    showNotification(message, type = 'success') {
+      if (type === 'success'){
+        this.notificationSuccess = message
+        this.notificationError = null 
+      } else {
+        this.notificationError = message
+        this.notificationSuccess = null
       }
+
+      setTimeout(() => {
+        this.notificationSuccess = null
+        this.notificationError = null 
+      }, 3000)
     },
     
     async handleLogout() {
@@ -1187,11 +1192,14 @@ export default {
         }
         
         const data = await response.json()
-        this.loans = data
-        this.filteredLoans = data
+        this.loans = [...data] // Use array spread for reactivity
+        this.filteredLoans = [...data]
         
         // Map debt plan names
         await this.mapDebtPlanNames()
+        
+        // Recalculate total debt
+        this.calculateTotalDebt()
         
       } catch (error) {
         console.error('Error fetching loans:', error)
@@ -1208,7 +1216,7 @@ export default {
         debtPlanMap[plan.id] = plan.name
       }
       
-      // Update loans with debt plan names
+      // Update loans with debt plan names using array spread for reactivity
       this.loans = this.loans.map(loan => ({
         ...loan,
         debt_plan_name: debtPlanMap[loan.debt_plan]
@@ -1228,6 +1236,18 @@ export default {
         (loan.debt_plan_name && loan.debt_plan_name.toLowerCase().includes(query)) ||
         this.formatDate(loan.created_at).toLowerCase().includes(query)
       )
+    },
+
+    calculateTotalDebt() {
+      if (!this.activePlan || !this.loans.length) {
+        this.totalDebt = 0
+        return
+      }
+      
+      // Sum up all loan balances for the active plan
+      this.totalDebt = this.loans
+        .filter(loan => loan.debt_plan === this.activePlan.id)
+        .reduce((total, loan) => total + parseFloat(loan.remaining_balance || loan.principal_balance), 0)
     },
 
     async viewLoan(loan) {
@@ -1292,16 +1312,8 @@ export default {
           throw new Error(data.error || 'Failed to update loan')
         }
         
-        const data = await response.json()
-
+        // Refetch loans to ensure data consistency
         await this.fetchLoans()
-        
-        // Update loan in list
-        const index = this.loans.findIndex(loan => loan.id === data.id)
-        if (index !== -1) {
-          this.loans[index] = { ...this.loans[index], ...data }
-          await this.mapDebtPlanNames()
-        }
         
         this.showEditLoanModal = false
         this.showNotification('Loan updated successfully!', 'success')
@@ -1334,11 +1346,11 @@ export default {
           throw new Error('Failed to delete loan')
         }
 
+        // Refetch loans to ensure data consistency
         await this.fetchLoans()
         
-        // Remove loan from list
-        this.loans = this.loans.filter(loan => loan.id !== this.loanToDelete.id)
-        this.filteredLoans = this.filteredLoans.filter(loan => loan.id !== this.loanToDelete.id)
+        // Also refresh debt plans to update calculations
+        await this.fetchDebtPlans()
         
         this.showDeleteConfirmModal = false
         this.loanToDelete = null
@@ -1350,19 +1362,26 @@ export default {
       } finally {
         this.loanDeleteLoading = false
       }
-    }
+    },
   },
   mounted() {
     const authStore = useAuthStore()
     this.user = authStore.getUser
-    this.fetchDebtPlans()
+    this.initializeData()
   },
   watch: {
     debtPlans: {
       handler() {
+        this.calculateTotalDebt()
         if (this.loans.length > 0) {
           this.mapDebtPlanNames()
         }
+      },
+      deep: true
+    },
+    loans: {
+      handler() {
+        this.calculateTotalDebt()
       },
       deep: true
     },
@@ -1370,6 +1389,12 @@ export default {
       if (val) {
         this.fetchLoans()
       }
+    },
+    activePlan: {
+      handler() {
+        this.calculateTotalDebt()
+      },
+      deep: true
     }
   }
 }
@@ -2311,6 +2336,43 @@ nav ul li a.active::after {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.alert-notification {
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.alert-notification.alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.alert-notification.alert-success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.alert i {
+  font-size: 1.2rem;
 }
 
 .modal-actions {
