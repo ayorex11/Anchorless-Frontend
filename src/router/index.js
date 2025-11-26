@@ -11,6 +11,7 @@ import VerifyEmailView from '@/views/VerifyEmailView.vue'
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue'
 import ResetPasswordView from '@/views/ResetPasswordView.vue'
 import ProfileView from '@/views/ProfileView.vue'
+import ProgressView from '@/views/ProgressView.vue'
 
 const routes = [
   {
@@ -71,6 +72,12 @@ const routes = [
   path: '/profile',
   name: 'profile',
   component: () => ProfileView,
+  meta: { requiresAuth: true }
+},
+{
+  path: '/progress',
+  name: 'progress',
+  component: ProgressView,
   meta: { requiresAuth: true }
 }
 ]

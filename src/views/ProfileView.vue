@@ -9,9 +9,7 @@
       <nav>
         <ul>
           <li><router-link to="/dashboard">Dashboard</router-link></li>
-          <li><a href="#debts">My Debts</a></li>
-          <li><a href="#strategy">Strategy</a></li>
-          <li><a href="#progress">Progress</a></li>
+          <li><router-link to ="/progress">Progress</router-link></li>
         </ul>
       </nav>
       <div class="user-menu">
