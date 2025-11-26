@@ -1,4 +1,3 @@
-
 <template>
   <div class="progress-view">
     <div class="bg-animation"></div>
@@ -285,51 +284,196 @@
                   </div>
                   
                   <div v-else-if="progressChartData" class="progress-charts">
-                    <div class="chart-card">
-                      <h3>Debt Payoff Progress</h3>
-                      <div class="progress-bar-container">
-                        <div class="progress-bar">
-                          <div 
-                            class="progress-fill" 
-                            :style="{ width: progressChartData.percentage + '%' }"
-                          >
-                            {{ progressChartData.percentage }}%
+                    <!-- Main Progress Overview -->
+                    <div class="progress-overview">
+                      <div class="progress-main-card">
+                        <h3>Overall Debt Payoff Progress</h3>
+                        <div class="progress-visual">
+                          <div class="circular-progress">
+                            <div class="circular-progress-bar">
+                              <svg width="120" height="120" viewBox="0 0 120 120">
+                                <circle 
+                                  cx="60" 
+                                  cy="60" 
+                                  r="54" 
+                                  fill="none" 
+                                  stroke="rgba(255,255,255,0.1)" 
+                                  stroke-width="8"
+                                />
+                                <circle 
+                                  cx="60" 
+                                  cy="60" 
+                                  r="54" 
+                                  fill="none" 
+                                  stroke="url(#progressGradient)" 
+                                  stroke-width="8"
+                                  :stroke-dasharray="339.3"
+                                  :stroke-dashoffset="339.3 - (339.3 * progressChartData.progress_percentage / 100)"
+                                  stroke-linecap="round"
+                                  transform="rotate(-90 60 60)"
+                                />
+                                <defs>
+                                  <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="var(--primary)" />
+                                    <stop offset="100%" stop-color="var(--accent)" />
+                                  </linearGradient>
+                                </defs>
+                              </svg>
+                              <div class="progress-text">
+                                <span class="percentage">{{ progressChartData.progress_percentage }}%</span>
+                                <span class="label">Complete</span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <div class="progress-labels">
-                          <span>Start: ${{ formatNumber(progressChartData.starting_balance) }}</span>
-                          <span>Current: ${{ formatNumber(progressChartData.current_balance) }}</span>
+                          <div class="progress-details">
+                            <div class="progress-stat">
+                              <span class="value">${{ formatNumber(progressChartData.total_debt_paid) }}</span>
+                              <span class="label">Paid</span>
+                            </div>
+                            <div class="progress-stat">
+                              <span class="value">${{ formatNumber(progressChartData.total_debt_remaining) }}</span>
+                              <span class="label">Remaining</span>
+                            </div>
+                            <div class="progress-stat">
+                              <span class="value">{{ progressChartData.months_remaining }}</span>
+                              <span class="label">Months Left</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div class="stats-grid">
-                      <div class="stat-box">
-                        <i class="fas fa-dollar-sign"></i>
-                        <div class="stat-info">
-                          <span class="stat-label">Total Paid</span>
-                          <span class="stat-number">${{ formatNumber(progressChartData.total_paid) }}</span>
+                    <!-- Timeline Progress -->
+                    <div class="timeline-progress">
+                      <h3>Payoff Timeline</h3>
+                      <div class="timeline-bar">
+                        <div class="timeline-labels">
+                          <span>Start</span>
+                          <span>Projected Payoff: {{ formatDate(progressChartData.projected_payoff_date) }}</span>
+                        </div>
+                        <div class="timeline-track">
+                          <div 
+                            class="timeline-progress-fill" 
+                            :style="{ width: progressChartData.progress_percentage + '%' }"
+                          >
+                            <div class="timeline-marker">
+                              <span>Current: {{ progressChartData.progress_percentage }}%</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="timeline-stats">
+                          <div class="timeline-stat">
+                            <span class="label">Completed Months</span>
+                            <span class="value">{{ progressChartData.completed_months }}</span>
+                          </div>
+                          <div class="timeline-stat">
+                            <span class="label">Remaining Months</span>
+                            <span class="value">{{ progressChartData.months_remaining }}</span>
+                          </div>
+                          <div class="timeline-stat">
+                            <span class="label">Total Months</span>
+                            <span class="value">{{ progressChartData.total_months }}</span>
+                          </div>
                         </div>
                       </div>
-                      <div class="stat-box">
-                        <i class="fas fa-percentage"></i>
-                        <div class="stat-info">
-                          <span class="stat-label">Interest Paid</span>
-                          <span class="stat-number">${{ formatNumber(progressChartData.total_interest) }}</span>
+                    </div>
+
+                    <!-- Loan Progress Breakdown -->
+                    <div class="loan-progress-breakdown">
+                      <h3>Loan Progress Breakdown</h3>
+                      <div class="loans-progress-list">
+                        <div 
+                          v-for="loan in progressChartData.loans" 
+                          :key="loan.id" 
+                          class="loan-progress-card"
+                          :class="{ 'focus-loan': loan.is_current_focus, 'paid-off': loan.is_paid_off }"
+                        >
+                          <div class="loan-header">
+                            <div class="loan-info">
+                              <h4>{{ loan.name }}</h4>
+                              <div class="loan-meta">
+                                <span class="payoff-order">Payoff Order: #{{ loan.payoff_order }}</span>
+                                <span v-if="loan.is_current_focus" class="focus-badge">
+                                  <i class="fas fa-bullseye"></i> Current Focus
+                                </span>
+                                <span v-if="loan.is_paid_off" class="paid-badge">
+                                  <i class="fas fa-check"></i> Paid Off
+                                </span>
+                              </div>
+                            </div>
+                            <div class="loan-progress-percentage">
+                              {{ loan.progress_percentage }}%
+                            </div>
+                          </div>
+                          
+                          <div class="loan-progress-bar">
+                            <div 
+                              class="loan-progress-fill" 
+                              :style="{ width: loan.progress_percentage + '%' }"
+                            ></div>
+                          </div>
+                          
+                          <div class="loan-stats-grid">
+                            <div class="loan-stat">
+                              <span class="label">Original Balance</span>
+                              <span class="value">${{ formatNumber(loan.original_balance) }}</span>
+                            </div>
+                            <div class="loan-stat">
+                              <span class="label">Remaining Balance</span>
+                              <span class="value">${{ formatNumber(loan.remaining_balance) }}</span>
+                            </div>
+                            <div class="loan-stat">
+                              <span class="label">Paid Amount</span>
+                              <span class="value">${{ formatNumber(loan.paid_amount) }}</span>
+                            </div>
+                            <div class="loan-stat">
+                              <span class="label">Interest Rate</span>
+                              <span class="value">{{ loan.interest_rate }}%</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div class="stat-box">
-                        <i class="fas fa-chart-line"></i>
-                        <div class="stat-info">
-                          <span class="stat-label">Principal Paid</span>
-                          <span class="stat-number">${{ formatNumber(progressChartData.principal_paid) }}</span>
+                    </div>
+
+                    <!-- Financial Summary -->
+                    <div class="financial-summary">
+                      <h3>Financial Summary</h3>
+                      <div class="summary-grid">
+                        <div class="summary-card">
+                          <div class="summary-icon">
+                            <i class="fas fa-chart-line"></i>
+                          </div>
+                          <div class="summary-content">
+                            <span class="value">${{ formatNumber(progressChartData.total_interest_to_pay) }}</span>
+                            <span class="label">Total Interest</span>
+                          </div>
                         </div>
-                      </div>
-                      <div class="stat-box">
-                        <i class="fas fa-hourglass-half"></i>
-                        <div class="stat-info">
-                          <span class="stat-label">Time Elapsed</span>
-                          <span class="stat-number">{{ progressChartData.months_elapsed }} months</span>
+                        <div class="summary-card">
+                          <div class="summary-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                          </div>
+                          <div class="summary-content">
+                            <span class="value">{{ progressChartData.current_month_number }}</span>
+                            <span class="label">Current Month</span>
+                          </div>
+                        </div>
+                        <div class="summary-card">
+                          <div class="summary-icon">
+                            <i class="fas fa-money-bill-wave"></i>
+                          </div>
+                          <div class="summary-content">
+                            <span class="value">${{ progressChartData.monthly_payment_budget }}</span>
+                            <span class="label">Monthly Budget</span>
+                          </div>
+                        </div>
+                        <div class="summary-card">
+                          <div class="summary-icon">
+                            <i class="fas fa-rocket"></i>
+                          </div>
+                          <div class="summary-content">
+                            <span class="value">{{ progressChartData.strategy }}</span>
+                            <span class="label">Strategy</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -473,6 +617,147 @@
       </div>
     </main>
 
+    <!-- Detailed Schedule Modal -->
+    <div v-if="showDetailModal" class="modal-overlay" @click="showDetailModal = false">
+      <div class="modal-content large-modal" @click.stop>
+        <div class="modal-header">
+          <h2>Payment Schedule Details</h2>
+          <button class="close-btn" @click="showDetailModal = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div v-if="detailLoading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading schedule details...</p>
+        </div>
+
+        <div v-else-if="detailError" class="error-state">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Failed to load details</h3>
+          <p>{{ detailError }}</p>
+          <button class="btn btn-primary" @click="fetchScheduleDetail(selectedSchedule)">Try Again</button>
+        </div>
+
+        <div v-else-if="scheduleDetail" class="schedule-detail">
+          <!-- Header Info -->
+          <div class="detail-header">
+            <div class="month-info">
+              <h3>Month {{ scheduleDetail.month_number }}</h3>
+              <p class="debt-plan-name">{{ scheduleDetail.debt_plan_name }}</p>
+            </div>
+            <div class="focus-loan-badge">
+              <i class="fas fa-bullseye"></i>
+              Focus: {{ scheduleDetail.focus_loan_name }}
+            </div>
+          </div>
+
+          <!-- Summary Stats -->
+          <div class="summary-grid">
+            <div class="summary-stat-card">
+              <div class="stat-icon">
+                <i class="fas fa-money-bill-wave"></i>
+              </div>
+              <div class="stat-content">
+                <span class="label">Total Payment</span>
+                <span class="value">${{ scheduleDetail.total_payment }}</span>
+              </div>
+            </div>
+            <div class="summary-stat-card">
+              <div class="stat-icon">
+                <i class="fas fa-percentage"></i>
+              </div>
+              <div class="stat-content">
+                <span class="label">Total Interest</span>
+                <span class="value">${{ scheduleDetail.total_interest }}</span>
+              </div>
+            </div>
+            <div class="summary-stat-card">
+              <div class="stat-icon">
+                <i class="fas fa-piggy-bank"></i>
+              </div>
+              <div class="stat-content">
+                <span class="label">Total Principal</span>
+                <span class="value">${{ scheduleDetail.total_principal }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Loan Breakdowns -->
+          <div class="breakdowns-section">
+            <h3>Loan Breakdowns</h3>
+            <div class="breakdowns-list">
+              <div 
+                v-for="breakdown in scheduleDetail.loan_breakdowns" 
+                :key="breakdown.id" 
+                class="breakdown-card detailed"
+                :class="{ 'focus-loan': breakdown.is_focus_loan }"
+              >
+                <div class="breakdown-header">
+                  <div class="loan-main-info">
+                    <div class="loan-title">
+                      <h4>{{ breakdown.loan_name }}</h4>
+                      <span class="payoff-order">Payoff Order: #{{ breakdown.loan_payoff_order }}</span>
+                    </div>
+                    <div class="loan-status">
+                      <span v-if="breakdown.is_focus_loan" class="focus-badge">
+                        <i class="fas fa-bullseye"></i> Focus Loan
+                      </span>
+                      <span class="payment-status" :class="getPaymentStatusClass(breakdown)">
+                        <i :class="getPaymentStatusIcon(breakdown)"></i>
+                        {{ breakdown.has_payment ? 'Paid' : 'Pending' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="breakdown-details-grid">
+                  <div class="detail-column">
+                    <div class="detail-item">
+                      <span class="label">Scheduled Payment</span>
+                      <span class="value">${{ breakdown.payment_amount }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="label">Interest Amount</span>
+                      <span class="value">${{ breakdown.interest_amount }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="label">Principal Amount</span>
+                      <span class="value">${{ breakdown.principal_amount }}</span>
+                    </div>
+                  </div>
+                  <div class="detail-column">
+                    <div class="detail-item">
+                      <span class="label">Remaining Balance</span>
+                      <span class="value">${{ formatNumber(breakdown.remaining_balance) }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="label">Payment Status</span>
+                      <span class="value" :class="getPaymentStatusClass(breakdown)">
+                        {{ breakdown.has_payment ? 'Completed' : 'Pending' }}
+                      </span>
+                    </div>
+                    <div v-if="breakdown.has_payment" class="detail-item">
+                      <span class="label">Actual Payment</span>
+                      <span class="value actual">${{ breakdown.actual_payment_amount }}</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="detail-actions">
+            <button class="btn btn-outline" @click="showDetailModal = false">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Notifications -->
     <div v-if="notification" class="alert-notification" :class="notificationType">
       <i :class="notificationIcon"></i>
@@ -516,6 +801,13 @@ export default {
       showThrottleNotification: false,
       scheduleSearch: '',
       
+      // Detailed Schedule Modal
+      showDetailModal: false,
+      detailLoading: false,
+      detailError: null,
+      scheduleDetail: null,
+      selectedSchedule: null,
+      
       // Tab data
       currentSchedule: null,
       fullSchedule: [],
@@ -553,6 +845,10 @@ export default {
       return this.fullSchedule.filter(schedule => 
         schedule.month_number.toString().includes(this.scheduleSearch)
       )
+    },
+    isMonthPaid() {
+      if (!this.scheduleDetail || !this.scheduleDetail.loan_breakdowns) return false
+      return this.scheduleDetail.loan_breakdowns.every(loan => loan.has_payment)
     }
   },
   methods: {
@@ -669,10 +965,12 @@ export default {
         
         const data = await response.json()
         this.progressChartData = data
+        
+        // Update progressData for overview stats
         this.progressData = {
-          total_remaining: data.current_balance || 0,
-          total_paid: data.total_paid || 0,
-          percentage: data.percentage || 0,
+          total_remaining: data.total_debt_remaining || 0,
+          total_paid: data.total_debt_paid || 0,
+          percentage: parseFloat(data.progress_percentage) || 0,
           months_remaining: data.months_remaining || 0
         }
       } catch (error) {
@@ -707,9 +1005,78 @@ export default {
       }
     },
 
-    viewScheduleDetail(schedule) {
-      this.showNotification(`Viewing details for Month ${schedule.month_number}`, 'success')
-      // TODO: Open modal or navigate to detail view
+    // Detailed Schedule Methods
+    async viewScheduleDetail(schedule) {
+      this.selectedSchedule = schedule
+      await this.fetchScheduleDetail(schedule)
+    },
+
+    async fetchScheduleDetail(schedule) {
+      this.detailLoading = true
+      this.detailError = null
+      this.showDetailModal = true
+      
+      try {
+        const response = await api.get(
+          `/PaymentSchedule/detail/?debt_plan=${this.selectedPlan.id}&month_number=${schedule.month_number}`
+        )
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch schedule details')
+        }
+        
+        this.scheduleDetail = await response.json()
+      } catch (error) {
+        console.error('Error fetching schedule detail:', error)
+        this.detailError = error.message || 'Failed to load schedule details'
+      } finally {
+        this.detailLoading = false
+      }
+    },
+
+    getPaymentStatusClass(breakdown) {
+      return breakdown.has_payment ? 'paid' : 'pending'
+    },
+
+    getPaymentStatusIcon(breakdown) {
+      return breakdown.has_payment ? 'fas fa-check-circle' : 'fas fa-clock'
+    },
+
+    calculateLoanProgress(breakdown) {
+      // This is a simplified calculation - you might want to adjust based on your data structure
+      const remaining = parseFloat(breakdown.remaining_balance)
+      const principal = parseFloat(breakdown.principal_balance || breakdown.remaining_balance * 2) // Fallback
+      const paid = principal - remaining
+      const progress = (paid / principal) * 100
+      return Math.min(Math.max(progress, 0), 100).toFixed(1)
+    },
+
+    async markMonthAsPaid() {
+      if (!this.scheduleDetail) return
+      
+      try {
+        // You'll need to implement this endpoint based on your backend
+        const response = await api.post('/PaymentSchedule/mark_paid/', {
+          debt_plan: this.selectedPlan.id,
+          month_number: this.scheduleDetail.month_number
+        })
+        
+        if (response.ok) {
+          this.showNotification('Month marked as paid successfully!', 'success')
+          await this.fetchScheduleDetail(this.selectedSchedule) // Refresh data
+          await this.loadTabData() // Refresh current tab data
+        } else {
+          throw new Error('Failed to mark month as paid')
+        }
+      } catch (error) {
+        console.error('Error marking month as paid:', error)
+        this.showNotification('Failed to mark month as paid', 'error')
+      }
     },
 
     downloadSchedulePDF() {
@@ -726,8 +1093,21 @@ export default {
 
     formatDate(dateString) {
       if (!dateString) return 'N/A'
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      try {
+        const date = new Date(dateString)
+        // Handle invalid dates
+        if (isNaN(date.getTime())) {
+          return 'Invalid Date'
+        }
+        return date.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        })
+      } catch (error) {
+        console.error('Error formatting date:', error)
+        return 'Invalid Date'
+      }
     },
 
     handleThrottling() {
@@ -916,6 +1296,22 @@ nav ul li a.active::after {
 .btn-sm {
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
+}
+
+.btn-success {
+  background: #22c55e;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #16a34a;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+}
+
+.btn-success:disabled {
+  background: #22c55e;
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Main Content */
@@ -1296,7 +1692,6 @@ nav ul li a.active::after {
   border-radius: 15px;
   font-size: 0.8rem;
   font-weight: 500;
-  white-space: nowrap;
 }
 
 .breakdown-details {
@@ -1411,69 +1806,364 @@ nav ul li a.active::after {
   align-items: center;
 }
 
-/* Progress Chart Tab */
+/* Progress Chart Tab - Updated Styles */
 .progress-charts {
   display: flex;
   flex-direction: column;
   gap: 2rem;
 }
 
-.chart-card {
-  background: rgba(0, 245, 255, 0.05);
-  border: 1px solid rgba(0, 245, 255, 0.2);
-  border-radius: 12px;
-  padding: 1.5rem;
+/* Progress Overview */
+.progress-overview {
+  margin-bottom: 2rem;
 }
 
-.chart-card h3 {
+.progress-main-card {
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 15px;
+  padding: 2rem;
+}
+
+.progress-main-card h3 {
   color: var(--light);
   margin-bottom: 1.5rem;
   text-align: center;
+  font-size: 1.3rem;
 }
 
-.progress-bar-container {
+.progress-visual {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+
+.circular-progress {
+  display: flex;
+  justify-content: center;
+}
+
+.circular-progress-bar {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.circular-progress-bar svg {
+  transform: rotate(0deg);
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.progress-text .percentage {
+  display: block;
+  color: var(--light);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.progress-text .label {
+  display: block;
+  color: var(--gray);
+  font-size: 0.8rem;
+}
+
+.progress-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.progress-stat {
+  text-align: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.progress-stat .value {
+  display: block;
+  color: var(--light);
+  font-weight: 700;
+  font-size: 1.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.progress-stat .label {
+  display: block;
+  color: var(--gray);
+  font-size: 0.8rem;
+}
+
+/* Timeline Progress */
+.timeline-progress {
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 15px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.timeline-progress h3 {
+  color: var(--light);
+  margin-bottom: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.timeline-track {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  position: relative;
+  overflow: visible;
+}
+
+.timeline-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 6px;
+  position: relative;
+  transition: width 1s ease-in-out;
+  min-width: 20px;
+}
+
+.timeline-marker {
+  position: absolute;
+  right: -60px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--primary);
+  color: var(--dark);
+  padding: 0.5rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.timeline-marker::after {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid var(--primary);
+}
+
+.timeline-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.timeline-stat {
+  text-align: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.timeline-stat .label {
+  display: block;
+  color: var(--gray);
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.timeline-stat .value {
+  display: block;
+  color: var(--light);
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+/* Loan Progress Breakdown */
+.loan-progress-breakdown {
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 15px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.loan-progress-breakdown h3 {
+  color: var(--light);
+  margin-bottom: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.loans-progress-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.progress-bar {
-  width: 100%;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  overflow: hidden;
-  position: relative;
+.loan-progress-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
 }
 
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--dark);
-  font-weight: 700;
-  font-size: 0.9rem;
-  transition: width 1s ease-in-out;
-  min-width: 50px;
+.loan-progress-card.focus-loan {
+  border-color: var(--primary);
+  background: rgba(0, 245, 255, 0.1);
 }
 
-.progress-labels {
+.loan-progress-card.paid-off {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.loan-progress-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 245, 255, 0.2);
+}
+
+.loan-header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.loan-info h4 {
+  color: var(--light);
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+}
+
+.loan-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.payoff-order {
   color: var(--gray);
+  font-size: 0.8rem;
+}
+
+.focus-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(0, 245, 255, 0.2);
+  color: var(--primary);
+  border: 1px solid rgba(0, 245, 255, 0.3);
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.paid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.loan-progress-percentage {
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.loan-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.loan-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 4px;
+  transition: width 1s ease-in-out;
+}
+
+.loan-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.loan-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.loan-stat .label {
+  color: var(--gray);
+  font-size: 0.8rem;
+}
+
+.loan-stat .value {
+  color: var(--light);
+  font-weight: 600;
   font-size: 0.9rem;
 }
 
-.stats-grid {
+/* Financial Summary */
+.financial-summary {
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 15px;
+  padding: 2rem;
+}
+
+.financial-summary h3 {
+  color: var(--light);
+  margin-bottom: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
 }
 
-.stat-box {
+.summary-card {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -1483,26 +2173,36 @@ nav ul li a.active::after {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.stat-box i {
-  font-size: 2rem;
+.summary-icon {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 245, 255, 0.1);
+  border-radius: 10px;
+}
+
+.summary-icon i {
+  font-size: 1.25rem;
   color: var(--primary);
 }
 
-.stat-info {
+.summary-content {
   display: flex;
   flex-direction: column;
 }
 
-.stat-label {
-  color: var(--gray);
-  font-size: 0.8rem;
-  margin-bottom: 0.25rem;
-}
-
-.stat-number {
+.summary-content .value {
   color: var(--light);
   font-weight: 700;
   font-size: 1.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.summary-content .label {
+  color: var(--gray);
+  font-size: 0.8rem;
 }
 
 /* Timeline Tab */
@@ -1695,6 +2395,335 @@ nav ul li a.active::after {
   color: var(--light);
   font-weight: 600;
   font-size: 0.9rem;
+}
+
+/* Detailed Schedule Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 2rem;
+}
+
+.modal-content {
+  background: var(--card-bg);
+  border-radius: 20px;
+  border: 1px solid rgba(0, 245, 255, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.large-modal {
+  max-width: 800px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 2rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h2 {
+  color: var(--light);
+  margin: 0;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--gray);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--light);
+}
+
+/* Schedule Detail Styles */
+.schedule-detail {
+  padding: 0 2rem 2rem;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.month-info h3 {
+  color: var(--light);
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+}
+
+.debt-plan-name {
+  color: var(--gray);
+  margin: 0;
+}
+
+.focus-loan-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(0, 245, 255, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(0, 245, 255, 0.3);
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summary-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 10px;
+}
+
+.summary-stat-card .stat-icon {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 245, 255, 0.1);
+  border-radius: 10px;
+}
+
+.summary-stat-card .stat-icon i {
+  font-size: 1.25rem;
+  color: var(--primary);
+}
+
+.summary-stat-card .stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-stat-card .label {
+  color: var(--gray);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.summary-stat-card .value {
+  color: var(--light);
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+.breakdowns-section h3 {
+  color: var(--light);
+  margin-bottom: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.breakdowns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.breakdown-card.detailed {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.breakdown-card.detailed.focus-loan {
+  border-color: var(--primary);
+  background: rgba(0, 245, 255, 0.1);
+}
+
+.loan-main-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.loan-title h4 {
+  color: var(--light);
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
+}
+
+.payoff-order {
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.loan-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.payment-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.payment-status.paid {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.payment-status.pending {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.breakdown-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detail-item .label {
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.detail-item .value {
+  color: var(--light);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.detail-item .value.actual {
+  color: #22c55e;
+}
+
+.detail-item .value.paid {
+  color: #22c55e;
+}
+
+.detail-item .value.pending {
+  color: #fbbf24;
+}
+
+.loan-progress {
+  margin-top: 1rem;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.progress-info .label {
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.progress-info .percentage {
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Scrollbar styling */
+.breakdowns-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.breakdowns-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.breakdowns-list::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+.breakdowns-list::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 /* Notifications */
@@ -1904,6 +2933,82 @@ nav ul li a.active::after {
     left: 10px;
     max-width: none;
   }
+  
+  /* Progress Chart Responsive */
+  .progress-visual {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    text-align: center;
+  }
+  
+  .progress-details {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .timeline-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .loan-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .loan-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .timeline-marker {
+    position: static;
+    transform: none;
+    margin-top: 0.5rem;
+    width: fit-content;
+  }
+  
+  .timeline-marker::after {
+    display: none;
+  }
+  
+  /* Modal responsive styles */
+  .modal-overlay {
+    padding: 1rem;
+  }
+  
+  .detail-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .breakdown-details-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .loan-main-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .loan-status {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .detail-actions {
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1934,6 +3039,10 @@ nav ul li a.active::after {
   
   .progress-fill {
     font-size: 0.8rem;
+  }
+  
+  .progress-details {
+    grid-template-columns: 1fr;
   }
 }
 </style>
