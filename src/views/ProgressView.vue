@@ -9,7 +9,7 @@
       <nav>
         <ul>
           <li><router-link to="/dashboard">Dashboard</router-link></li>
-          <li><a href="#debts" @click.prevent="$router.push('/dashboard#debts')">My Debts</a></li>
+          <li><router-link to="/dashboard#debts">My Debt</router-link></li>
           <li><router-link to="/progress" class="active">Progress</router-link></li>
         </ul>
       </nav>
@@ -494,12 +494,40 @@
                   </div>
                   
                   <div v-else-if="timelineData && timelineData.length > 0" class="timeline-view">
+
+                    <div class="timeline-summary">
+                      <div class="summary-stat-box">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                          <span class="value"> {{ completedMonths }}</span>
+                          <span class="label">Completed</span>
+                        </div>
+                      </div>
+                      <div class="summary-stat-box current">
+                        <i class="fas fa-calendar-day"></i>
+                        <div>
+                          <span class="value"> {{ currentMonthNumber }}</span>
+                          <span class="label">Current Month</span>
+                        </div>
+                      </div>
+                      <div class="summary-stat-box">
+                        <i class="fas fa-calendar"></i>
+                        <div>
+                          <span class="value"> {{ progressData.months_remaining  }}</span>
+                          <span class="label">Remaining</span>
+                        </div>
+                      </div>  
+                    </div>
                     <div class="timeline-container">
                       <div 
                         v-for="(event, index) in timelineData" 
                         :key="index" 
                         class="timeline-item"
-                        :class="{ 'completed': event.completed }"
+                        :class="{ 
+                          'completed': event.completed,
+                          'current': event.is_current,
+                          'past_due': event.is_past && !event.completed
+                        }"
                       >
                         <div class="timeline-marker">
                           <i :class="event.icon"></i>
@@ -511,7 +539,16 @@
                           </div>
                           <p class="timeline-description">{{ event.description }}</p>
                           <div v-if="event.amount" class="timeline-amount">
-                            Amount: ${{ formatNumber(event.amount) }}
+                            <span class="label">Scheduled Payment:</span>
+                            <span class="value">${{ formatNumber(event.amount) }}</span>
+                          </div>
+                          <div v-if="event.total_paid && parseFloat(event.total_paid) > 0" class="timeline-amount paid">
+                            <span class="label">Amount Paid:</span>
+                            <span class="value">${{ formatNumber(event.total_paid) }}</span>  
+                          </div>
+                          <div v-if="event.payment_deficit && parseFloat(event.payment_deficit) > 0" class="timeline-amount deficit">
+                            <span class="label">Remaining:</span>
+                            <span class="value">${{ formatNumber(event.payment_deficit) }} </span>
                           </div>
                         </div>
                       </div>
@@ -849,7 +886,19 @@ export default {
     isMonthPaid() {
       if (!this.scheduleDetail || !this.scheduleDetail.loan_breakdowns) return false
       return this.scheduleDetail.loan_breakdowns.every(loan => loan.has_payment)
-    }
+    },
+    completedMonths(){
+      return this.timelineData.filter(event => event.completed).length
+    },
+    currentMonthNumber(){
+      const current = this.timelineData.find(event => event.is_current)
+      return current ? current.month_number : 0
+    },
+
+    futureMonths(){
+      return this.timelineData.filter(event => event.is_future).length
+    },
+
   },
   methods: {
     async fetchDebtPlans() {
@@ -985,8 +1034,34 @@ export default {
         const response = await api.get(`/PaymentSchedule/timeline/?debt_plan=${this.selectedPlan.id}`)
         
         if (!response.ok) throw new Error('Failed to fetch timeline data')
-        
-        this.timelineData = await response.json()
+
+        const data = await response.json()
+
+        this.timelineData = data.map(schedule=> {
+          const event = {
+            title: `Month ${schedule.month_number}`,
+            date: this.getMonthDate(schedule.month_number),
+            description: `Focus: ${schedule.focus_loan_name} | Payment: $${schedule.total_payment}`,
+            amount: parseFloat(schedule.total_payment),
+            completed: schedule.has_payments || schedule.is_fully_paid,
+            icon: this.getTimelineIcon(schedule),
+            month_number: schedule.month_number,
+            is_current: schedule.is_current_month,
+            is_past: schedule.is_past_month,
+            is_future: schedule.is_future_month,
+            completion_percentage: schedule.completion_percentage,
+            total_paid: schedule.total_paid,
+            payment_deficit: schedule.payment_deficit
+          }
+          if (schedule.is_fully_paid){
+            event.description += ' ✓ Fully Paid'
+          } else if (schedule.has_payments){
+            event.description += ` | Paid: $${schedule.total_paid} (${schedule.completion_percentage}%)`
+          } else if (schedule.is_current_month){
+            event.description += ' | Current Month'
+          }
+          return event
+        })
       } catch (error) {
         console.error('Error fetching timeline data:', error)
         this.timelineData = []
@@ -1055,6 +1130,32 @@ export default {
       const paid = principal - remaining
       const progress = (paid / principal) * 100
       return Math.min(Math.max(progress, 0), 100).toFixed(1)
+    },
+
+    getMonthDate(monthNumber) {
+      if (!this.selectedPlan?.created_at) return 'N/A'
+      const createdDate = new Date(this.selectedPlan.created_at)
+      const targetDate = new Date(createdDate)
+      targetDate.setMonth(createdDate.getMonth() + monthNumber - 1)
+
+      return targetDate.toLocaleDateString('en-US',{
+        month: 'short',
+        year: 'numeric'
+      })
+    },
+
+    getTimelineIcon(schedule){
+      if (schedule.is_fully_paid){
+        return 'fas fa-check-circle'
+      } else if (schedule.has_payments){
+        return 'fas fa-hourglass-half'
+      } else if (schedule.is_current_month){
+        return 'fas fa-calendar-day'
+      } else if (schedule.is_past_month){
+        return 'fas fa-exclamation-circle'
+      } else{
+        return 'fas fa-calendar'
+      }
     },
 
     async markMonthAsPaid() {
@@ -1569,6 +1670,128 @@ nav ul li a.active::after {
 
 .tab-panel {
   min-height: 400px;
+}
+
+/* Timeline Summary Stats */
+.timeline-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(0, 245, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 245, 255, 0.2);
+}
+
+.summary-stat-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.summary-stat-box.current {
+  border-color: var(--primary);
+  background: rgba(0, 245, 255, 0.1);
+}
+
+.summary-stat-box i {
+  font-size: 1.5rem;
+  color: var(--primary);
+}
+
+.summary-stat-box.current i {
+  color: var(--primary);
+  animation: pulse-icon 2s ease-in-out infinite;
+}
+
+@keyframes pulse-icon {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.summary-stat-box div {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-stat-box .value {
+  color: var(--light);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.summary-stat-box .label {
+  color: var(--gray);
+  font-size: 0.85rem;
+}
+
+/* Enhanced Timeline Items */
+.timeline-item.current {
+  border-color: rgba(0, 245, 255, 0.5);
+  background: rgba(0, 245, 255, 0.08);
+}
+
+.timeline-item.current .timeline-marker {
+  background: rgba(0, 245, 255, 0.3);
+  border-color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 245, 255, 0.5);
+}
+
+.timeline-item.past-due {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.timeline-item.past-due .timeline-marker {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+}
+
+.timeline-item.past-due .timeline-marker i {
+  color: #ef4444;
+}
+
+.timeline-amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+.timeline-amount .label {
+  color: var(--gray);
+  font-size: 0.85rem;
+}
+
+.timeline-amount .value {
+  color: var(--light);
+  font-weight: 600;
+}
+
+.timeline-amount.paid {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.timeline-amount.paid .value {
+  color: #22c55e;
+}
+
+.timeline-amount.deficit {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.timeline-amount.deficit .value {
+  color: #fbbf24;
 }
 
 /* Current Month Tab */

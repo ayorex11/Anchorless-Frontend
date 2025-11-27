@@ -934,7 +934,7 @@ export default {
         this.activePlan = this.debtPlans.find(plan => plan.is_active) || this.debtPlans[0] || null
 
         // Recalculate total debt whenever plans change
-        this.calculateTotalDebt()
+        await this.calculateTotalDebt()
 
         if (this.loans.length > 0) {
           await this.mapDebtPlanNames()
@@ -1120,9 +1120,9 @@ export default {
       }
     },
 
-    setActivePlan(plan) {
+    async setActivePlan(plan) {
       this.activePlan = plan
-      this.calculateTotalDebt()
+      await this.calculateTotalDebt()
     },
 
     getStrategyIcon(strategy) {
@@ -1237,16 +1237,28 @@ export default {
       )
     },
 
-    calculateTotalDebt() {
+    async calculateTotalDebt() {
       if (!this.activePlan || !this.loans.length) {
         this.totalDebt = 0
         return
       }
-      
-      // Sum up all loan balances for the active plan
-      this.totalDebt = this.loans
-        .filter(loan => loan.debt_plan === this.activePlan.id)
-        .reduce((total, loan) => total + parseFloat(loan.remaining_balance || loan.principal_balance), 0)
+
+      try{
+        const response = await api.get(`/PaymentSchedule/progress/?debt_plan=${this.activePlan.id}`)
+        if (response.ok){
+          const progressData = await response.json()
+          this.totalDebt = parseFloat(progressData.total_debt_remaining || 0) 
+        } else{
+          this.totalDebt = this.loans
+            .filter(loan => loan.debt_plan === this.activePlan.id)
+            .reduce((total, loan) => total + parseFloat(loan.remaining_balance || loan.principal_balance), 0)
+        }
+      } catch(error){
+        console.error('Error calculating total debt:', error)
+        this.totalDebt = this.loans
+          .filter(loan => loan.debt_plan === this.activePlan.id)
+          .reduce((total, loan) => total + parseFloat(loan.remaining_balance || loan.principal_balance), 0)
+      }
     },
 
     async viewLoan(loan) {
@@ -1330,6 +1342,14 @@ export default {
       this.showDeleteConfirmModal = true
     },
 
+    handleHashNavigation(){
+      if (this.$route.hash === '#debts') {
+        this.$nextTick(() => {
+          this.showMyDebts = true
+        })
+      }  
+    },
+
     async deleteLoan() {
       this.loanDeleteLoading = true
       
@@ -1367,6 +1387,7 @@ export default {
     const authStore = useAuthStore()
     this.user = authStore.getUser
     this.initializeData()
+    this.handleHashNavigation()
   },
   watch: {
     debtPlans: {
@@ -1390,10 +1411,13 @@ export default {
       }
     },
     activePlan: {
-      handler() {
-        this.calculateTotalDebt()
+      async handler() {
+        await this.calculateTotalDebt()
       },
       deep: true
+    },
+    '$route.hash'(newHash){
+      this.handleHashNavigation()
     }
   }
 }
