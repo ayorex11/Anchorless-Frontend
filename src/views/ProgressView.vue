@@ -1848,11 +1848,12 @@ nav ul li a.active::after {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 1.5rem;
+  padding: 1.75rem 1.5rem;
   background: rgba(255, 255, 255, 0.08);
   border : 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   transition: all 0.3s ease;
+  min-height: 120px;
 }
 
 .summary-stat .label {
@@ -1872,17 +1873,18 @@ nav ul li a.active::after {
 .breakdowns-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .breakdown-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.03) 100%);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  min-height: 280px;
 }
 
 .breakdown-card::before {
@@ -1950,13 +1952,15 @@ nav ul li a.active::after {
 .breakdown-details {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .detail-item .label {
@@ -2672,9 +2676,11 @@ nav ul li a.active::after {
   border: 1px solid rgba(0, 245, 255, 0.3);
   width: 100%;
   max-width: 500px;
-  max-height: 90vh;
+  max-height: 85vh;
   overflow-y: auto;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
 }
 
 .large-modal {
@@ -2713,6 +2719,8 @@ nav ul li a.active::after {
 /* Schedule Detail Styles */
 .schedule-detail {
   padding: 0 2rem 2rem;
+  flex: 1;
+  overflow: auto;
 }
 
 .detail-header {
@@ -2805,17 +2813,20 @@ nav ul li a.active::after {
 .breakdowns-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  max-height: 400px;
+  gap: 1,5rem;
+  max-height: 500px;
   overflow-y: auto;
   padding-right: 0.5rem;
+  padding-bottom: 1rem;
 }
 
 .breakdown-card.detailed {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  padding: 1.5rem;
+  padding:2rem 1.5rem;
+  min-height: auto;
+  margin-bottom: 1rem;
 }
 
 .breakdown-card.detailed.focus-loan {
@@ -2875,12 +2886,13 @@ nav ul li a.active::after {
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .detail-column {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .detail-item {
