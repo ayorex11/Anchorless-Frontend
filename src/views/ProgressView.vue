@@ -186,15 +186,30 @@
                         v-for="breakdown in currentSchedule.loan_breakdowns" 
                         :key="breakdown.id" 
                         class="breakdown-card"
-                        :class="{ 'focus-loan': breakdown.is_focus_loan }"
+                        :class="{ 'focus-loan': breakdown.is_focus_loan, 'paid': breakdown.has_payment }"
                       >
                         <div class="breakdown-header">
                           <div class="loan-info">
                             <h4>{{ breakdown.loan_name }}</h4>
-                            <span v-if="breakdown.is_focus_loan" class="focus-badge">
-                              <i class="fas fa-bullseye"></i> Focus Loan
-                            </span>
+                            <div class="loan-status-badges">
+                              <span v-if="breakdown.is_focus_loan" class="focus-badge">
+                                <i class="fas fa-bullseye"></i> Focus Loan
+                              </span>
+                              <span v-if="!breakdown.has_payment" class="payment-needed-badge">
+                                <i class="fas fa-exclamation-circle"></i> Payment Needed
+                              </span>
+                              <span v-else class="paid-badge">
+                                <i class="fas fa-check-circle"></i> Paid
+                              </span>
+                            </div>
                           </div>
+                          <button 
+                            v-if="!breakdown.has_payment" 
+                            class="btn btn-sm btn-primary quick-pay-btn"
+                            @click="quickPayLoan(breakdown)"
+                          >
+                            <i class="fas fa-dollar-sign"></i> Quick Pay
+                          </button>
                         </div>
                         <div class="breakdown-details">
                           <div class="detail-item">
@@ -212,6 +227,14 @@
                           <div class="detail-item">
                             <span class="label">Remaining</span>
                             <span class="value">${{ formatNumber(breakdown.remaining_balance) }}</span>
+                          </div>
+                        </div>
+                        <div v-if="breakdown.has_payment && breakdown.payment_deficit > 0" class="partial-payment-indicator">
+                          <div class="partial-badge">
+                            <i class="fas fa-hourglass-half"></i> Partially Paid
+                          </div>
+                          <div class="partial-amount">
+                            ${{ breakdown.actual_payment_amount }} of ${{ breakdown.payment_amount }}
                           </div>
                         </div>
                       </div>
@@ -254,6 +277,7 @@
                         <div class="th">Interest</div>
                         <div class="th">Principal</div>
                         <div class="th">Focus Loan</div>
+                        <div class="th">Status</div>
                       </div>
                       <div 
                         v-for="schedule in filteredSchedule" 
@@ -266,6 +290,11 @@
                         <div class="td">${{ schedule.total_interest }}</div>
                         <div class="td">${{ schedule.total_principal }}</div>
                         <div class="td">{{ schedule.focus_loan_name }}</div>
+                        <div class="td">
+                          <span class="status-badge" :class="getScheduleStatus(schedule)">
+                            {{ getScheduleStatusText(schedule) }}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -684,9 +713,15 @@
               <h3>Month {{ scheduleDetail.month_number }}</h3>
               <p class="debt-plan-name">{{ scheduleDetail.debt_plan_name }}</p>
             </div>
-            <div class="focus-loan-badge">
-              <i class="fas fa-bullseye"></i>
-              Focus: {{ scheduleDetail.focus_loan_name }}
+            <div class="month-status">
+              <div class="focus-loan-badge">
+                <i class="fas fa-bullseye"></i>
+                Focus: {{ scheduleDetail.focus_loan_name }}
+              </div>
+              <div class="month-completion-badge" :class="isMonthPaid ? 'completed' : 'pending'">
+                <i :class="isMonthPaid ? 'fas fa-check-circle' : 'fas fa-clock'"></i>
+                {{ isMonthPaid ? 'Month Complete' : `${unpaidLoansCount} Unpaid` }}
+              </div>
             </div>
           </div>
 
@@ -729,7 +764,11 @@
                 v-for="breakdown in scheduleDetail.loan_breakdowns" 
                 :key="breakdown.id" 
                 class="breakdown-card detailed"
-                :class="{ 'focus-loan': breakdown.is_focus_loan }"
+                :class="{ 
+                  'focus-loan': breakdown.is_focus_loan,
+                  'paid': breakdown.has_payment,
+                  'partially-paid': breakdown.has_payment && breakdown.payment_deficit > 0
+                }"
               >
                 <div class="breakdown-header">
                   <div class="loan-main-info">
@@ -743,10 +782,17 @@
                       </span>
                       <span class="payment-status" :class="getPaymentStatusClass(breakdown)">
                         <i :class="getPaymentStatusIcon(breakdown)"></i>
-                        {{ breakdown.has_payment ? 'Paid' : 'Pending' }}
+                        {{ breakdown.has_payment ? (breakdown.payment_deficit > 0 ? 'Partially Paid' : 'Paid') : 'Payment Needed' }}
                       </span>
                     </div>
                   </div>
+                  <button 
+                    v-if="!breakdown.has_payment || breakdown.payment_deficit > 0" 
+                    class="btn btn-sm btn-primary quick-pay-btn"
+                    @click="quickPayLoan(breakdown)"
+                  >
+                    <i class="fas fa-dollar-sign"></i> Quick Pay
+                  </button>
                 </div>
 
                 <div class="breakdown-details-grid">
@@ -772,12 +818,16 @@
                     <div class="detail-item">
                       <span class="label">Payment Status</span>
                       <span class="value" :class="getPaymentStatusClass(breakdown)">
-                        {{ breakdown.has_payment ? 'Completed' : 'Pending' }}
+                        {{ breakdown.has_payment ? (breakdown.payment_deficit > 0 ? 'Partially Paid' : 'Completed') : 'Pending' }}
                       </span>
                     </div>
                     <div v-if="breakdown.has_payment" class="detail-item">
                       <span class="label">Actual Payment</span>
                       <span class="value actual">${{ breakdown.actual_payment_amount }}</span>
+                    </div>
+                    <div v-if="breakdown.payment_deficit > 0" class="detail-item">
+                      <span class="label">Remaining Due</span>
+                      <span class="value deficit">${{ breakdown.payment_deficit }}</span>
                     </div>
                   </div>
                 </div>
@@ -787,13 +837,13 @@
           </div>
 
           <!-- Payment Tracking Section -->
-          <div class="payment-section" v-if="scheduleDetail">
+          <div v-if="hasUnpaidLoans" class="payment-section">
             <h3>Record Payment</h3>
             
             <form @submit.prevent="submitPayment" class="payment-form">
               <div class="form-row">
                 <div class="form-group">
-                  <label for="paymentLoan">Loan</label>
+                  <label for="paymentLoan">Loan <span class="required">*</span></label>
                   <select 
                     id="paymentLoan" 
                     v-model="newPayment.loan" 
@@ -802,32 +852,49 @@
                   >
                     <option value="" disabled>Select a loan</option>
                     <option 
-                      v-for="breakdown in scheduleDetail.loan_breakdowns" 
+                      v-for="breakdown in unpaidLoans" 
                       :key="breakdown.loan_id" 
                       :value="breakdown.loan_id"
+                      class="unpaid-option"
                     >
                       {{ breakdown.loan_name }} - ${{ breakdown.payment_amount }} due
+                      <span v-if="breakdown.payment_deficit > 0" class="partial-indicator">
+                        (Partially paid: ${{ breakdown.actual_payment_amount || 0 }})
+                      </span>
                     </option>
                   </select>
+                  <div class="form-hint" v-if="unpaidLoans.length === 0">
+                    All loans for this month are paid!
+                  </div>
                 </div>
                 
                 <div class="form-group">
-                  <label for="paymentAmount">Amount ($)</label>
-                  <input 
-                    type="number" 
-                    id="paymentAmount" 
-                    v-model="newPayment.amount" 
-                    step="0.01"
-                    min="0.01"
-                    required
-                    placeholder="0.00"
-                  >
+                  <label for="paymentAmount">Amount ($) <span class="required">*</span></label>
+                  <div class="amount-input-container">
+                    <span class="currency-symbol">$</span>
+                    <input 
+                      type="number" 
+                      id="paymentAmount" 
+                      v-model="newPayment.amount" 
+                      step="0.01"
+                      min="0.01"
+                      required
+                      placeholder="0.00"
+                      class="amount-input"
+                    >
+                  </div>
+                  <div class="suggested-amount" v-if="suggestedAmount">
+                    Suggested: ${{ suggestedAmount }}
+                    <button type="button" class="btn-link" @click="newPayment.amount = suggestedAmount">
+                      Use this amount
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label for="paymentDate">Payment Date</label>
+                  <label for="paymentDate">Payment Date <span class="required">*</span></label>
                   <input 
                     type="date" 
                     id="paymentDate" 
@@ -837,7 +904,7 @@
                 </div>
                 
                 <div class="form-group">
-                  <label for="paymentMethod">Payment Method</label>
+                  <label for="paymentMethod">Payment Method <span class="required">*</span></label>
                   <select 
                     id="paymentMethod" 
                     v-model="newPayment.payment_method" 
@@ -901,14 +968,24 @@
             </form>
           </div>
 
+          <!-- Month Complete Message -->
+          <div v-else class="payment-complete-message">
+            <div class="complete-icon">
+              <i class="fas fa-check-circle"></i>
+            </div>
+            <h3>All Payments Complete!</h3>
+            <p>All loans for this month have been paid. Great job! 🎉</p>
+          </div>
+
           <!-- Recent Payments Section -->
-          <div class="recent-payments" v-if="recentPayments && recentPayments.length > 0">
-            <h3>Recent Payments</h3>
+          <div class="recent-payments" v-if="currentMonthPayments && currentMonthPayments.length > 0">
+            <h3>Recent Payments for This Month</h3>
             <div class="payments-list">
               <div 
-                v-for="payment in recentPayments" 
+                v-for="payment in currentMonthPayments" 
                 :key="payment.id" 
                 class="payment-card"
+                :class="{ 'success-animation': payment.showSuccess }"
               >
                 <div class="payment-header">
                   <div class="payment-info">
@@ -1057,7 +1134,37 @@ export default {
     },
     isMonthPaid() {
       if (!this.scheduleDetail || !this.scheduleDetail.loan_breakdowns) return false
-      return this.scheduleDetail.loan_breakdowns.every(loan => loan.has_payment)
+      return this.scheduleDetail.loan_breakdowns.every(loan => loan.has_payment && loan.payment_deficit <= 0)
+    },
+    hasUnpaidLoans() {
+      if (!this.scheduleDetail || !this.scheduleDetail.loan_breakdowns) return false
+      return this.scheduleDetail.loan_breakdowns.some(loan => !loan.has_payment || loan.payment_deficit > 0)
+    },
+    unpaidLoans() {
+      if (!this.scheduleDetail || !this.scheduleDetail.loan_breakdowns) return []
+      return this.scheduleDetail.loan_breakdowns.filter(loan => !loan.has_payment || loan.payment_deficit > 0)
+    },
+    unpaidLoansCount() {
+      return this.unpaidLoans.length
+    },
+    suggestedAmount() {
+      if (!this.newPayment.loan || !this.scheduleDetail) return null
+      const breakdown = this.scheduleDetail.loan_breakdowns.find(b => b.loan_id === this.newPayment.loan)
+      if (!breakdown) return null
+      
+      if (breakdown.has_payment && breakdown.payment_deficit > 0) {
+        return breakdown.payment_deficit
+      }
+      return breakdown.payment_amount
+    },
+    currentMonthPayments() {
+      if (!this.scheduleDetail || !this.recentPayments) return []
+      // Filter payments for the current month based on schedule month number
+      // This is a simplified approach - you might need to adjust based on your actual data structure
+      return this.recentPayments.filter(payment => {
+        // Assuming payment has a reference to the schedule month
+        return payment.schedule_month === this.scheduleDetail.month_number
+      })
     },
     completedMonths(){
       return this.timelineData.filter(event => event.completed).length
@@ -1066,11 +1173,25 @@ export default {
       const current = this.timelineData.find(event => event.is_current)
       return current ? current.month_number : 0
     },
-
     futureMonths(){
       return this.timelineData.filter(event => event.is_future).length
     },
-
+  },
+  watch: {
+    showDetailModal(newVal) {
+      if (!newVal) {
+        this.resetPaymentForm()
+      }
+    },
+    'newPayment.loan'(newLoanId) {
+      if (newLoanId && this.scheduleDetail) {
+        const breakdown = this.scheduleDetail.loan_breakdowns.find(b => b.loan_id === newLoanId)
+        if (breakdown && (!breakdown.has_payment || breakdown.payment_deficit > 0)) {
+          // Auto-fill the suggested amount
+          this.newPayment.amount = this.suggestedAmount
+        }
+      }
+    }
   },
   methods: {
     async fetchDebtPlans() {
@@ -1293,6 +1414,11 @@ export default {
 
     // Payment Tracking Methods
     async submitPayment() {
+      // Confirmation dialog
+      const loanName = this.getLoanName(this.newPayment.loan)
+      const confirmed = confirm(`Record payment of $${this.newPayment.amount} for ${loanName}?`)
+      if (!confirmed) return
+      
       this.paymentLoading = true
       this.paymentError = null
       
@@ -1314,12 +1440,29 @@ export default {
         
         const paymentData = await response.json()
         
+        // Add success animation to the new payment
+        paymentData.showSuccess = true
+        
         // Reset form
         this.resetPaymentForm()
         
         // Refresh data
         await this.fetchScheduleDetail(this.selectedSchedule)
         await this.fetchRecentPayments()
+        
+        // Add the new payment to recent payments with success animation
+        if (this.recentPayments) {
+          this.recentPayments.unshift(paymentData)
+          // Remove success animation after 3 seconds
+          setTimeout(() => {
+            if (this.recentPayments) {
+              const paymentIndex = this.recentPayments.findIndex(p => p.id === paymentData.id)
+              if (paymentIndex !== -1) {
+                this.recentPayments[paymentIndex].showSuccess = false
+              }
+            }
+          }, 3000)
+        }
         
         this.showNotification('Payment recorded successfully!', 'success')
         
@@ -1329,6 +1472,18 @@ export default {
       } finally {
         this.paymentLoading = false
       }
+    },
+
+    quickPayLoan(breakdown) {
+      this.newPayment.loan = breakdown.loan_id
+      this.newPayment.amount = breakdown.payment_deficit > 0 ? breakdown.payment_deficit : breakdown.payment_amount
+      // Scroll to payment form
+      this.$nextTick(() => {
+        const paymentSection = document.querySelector('.payment-section')
+        if (paymentSection) {
+          paymentSection.scrollIntoView({ behavior: 'smooth' })
+        }
+      })
     },
 
     resetPaymentForm() {
@@ -1347,7 +1502,7 @@ export default {
       if (!this.selectedPlan) return
       
       try {
-        const response = await api.get(`/Payment/list_payments/?debt_plan=${this.selectedPlan.id}&limit=5`)
+        const response = await api.get(`/Payment/list_payments/?debt_plan=${this.selectedPlan.id}&limit=10`)
         
         if (!response.ok) throw new Error('Failed to fetch recent payments')
         
@@ -1359,11 +1514,46 @@ export default {
     },
 
     getPaymentStatusClass(breakdown) {
-      return breakdown.has_payment ? 'paid' : 'pending'
+      if (breakdown.has_payment) {
+        return breakdown.payment_deficit > 0 ? 'partially-paid' : 'paid'
+      }
+      return 'pending'
     },
 
     getPaymentStatusIcon(breakdown) {
-      return breakdown.has_payment ? 'fas fa-check-circle' : 'fas fa-clock'
+      if (breakdown.has_payment) {
+        return breakdown.payment_deficit > 0 ? 'fas fa-hourglass-half' : 'fas fa-check-circle'
+      }
+      return 'fas fa-clock'
+    },
+
+    getScheduleStatus(schedule) {
+      if (schedule.is_fully_paid) return 'completed'
+      if (schedule.has_payments){
+        if (schedule.payment_deficit >0) return 'partially_paid'
+        return 'completed'
+      } 
+      if (schedule.is_current_month) return 'current'
+      if (schedule.is_past_month && !schedule.has_payments) return 'overdue'
+      return 'pending'
+    },
+
+    getScheduleStatusText(schedule) {
+      if (schedule.is_fully_paid) return 'Paid'
+      if (schedule.has_payments) {
+
+        if (schedule.payment_deficit > 0) return 'Partial'
+        return 'Paid' // If has payments and no deficit, it's paid
+      }
+      if (schedule.is_current_month) return 'Current'
+      if (schedule.is_past_month && !schedule.has_payments) return 'Overdue'
+      return 'Pending'
+    },
+
+    getLoanName(loanId) {
+      if (!this.scheduleDetail || !this.scheduleDetail.loan_breakdowns) return ''
+      const loan = this.scheduleDetail.loan_breakdowns.find(b => b.loan_id === loanId)
+      return loan ? loan.loan_name : ''
     },
 
     calculateLoanProgress(breakdown) {
@@ -1529,7 +1719,304 @@ export default {
 }
 </script>
 
+
 <style scoped>
+
+.payment-needed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Loan Status Badges Container */
+.loan-status-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Quick Pay Button */
+.quick-pay-btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Partial Payment Indicator */
+.partial-payment-indicator {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.partial-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #fbbf24;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.partial-amount {
+  color: var(--light);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Status Badges for Schedule Table */
+.status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.completed {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.status-badge.partially-paid {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.status-badge.current {
+  background: rgba(0, 245, 255, 0.2);
+  color: var(--primary);
+}
+
+.status-badge.overdue {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.status-badge.pending {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--gray);
+}
+
+/* Month Status in Modal Header */
+.month-status {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.month-completion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.month-completion-badge.completed {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.month-completion-badge.pending {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+/* Form Improvements */
+.required {
+  color: #ef4444;
+}
+
+.form-hint {
+  color: var(--gray);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.amount-input-container {
+  position: relative;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray);
+  font-weight: 600;
+}
+
+.amount-input {
+  padding-left: 1.5rem;
+}
+
+.suggested-amount {
+  color: var(--primary);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.btn-link:hover {
+  color: var(--accent);
+}
+
+/* Payment Complete Message */
+.payment-complete-message {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: rgba(34, 197, 94, 0.05);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 12px;
+  margin-top: 2rem;
+}
+
+.complete-icon {
+  font-size: 3rem;
+  color: #22c55e;
+  margin-bottom: 1rem;
+}
+
+.payment-complete-message h3 {
+  color: var(--light);
+  margin-bottom: 0.5rem;
+}
+
+.payment-complete-message p {
+  color: var(--gray);
+}
+
+/* Success Animation */
+.success-animation {
+  animation: pulseSuccess 2s ease-in-out;
+}
+
+@keyframes pulseSuccess {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+/* Partially Paid Status */
+.payment-status.partially-paid {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.breakdown-card.partially-paid {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.05);
+}
+
+/* Unpaid Loan Options */
+.unpaid-option {
+  color: var(--light);
+}
+
+.partial-indicator {
+  color: #fbbf24;
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+/* Value Colors for Deficit */
+.value.deficit {
+  color: #fbbf24;
+}
+
+/* Paid Loan Styling */
+.breakdown-card.paid {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.05);
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .loan-status-badges {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .month-status {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .quick-pay-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+  
+  .partial-payment-indicator {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .th:nth-child(6),
+  .td:nth-child(6) {
+    order: -1; /* Move status to top on mobile */
+  }
+  
+  .th, .td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+  }
+  
+  .th::before, .td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--gray);
+    margin-right: 1rem;
+  }
+}
+
 .progress-view {
   min-height: 100vh;
   background: var(--darker);
@@ -2313,7 +2800,7 @@ nav ul li a.active::after {
 
 .table-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 2fr;
+  grid-template-columns: 0.5fr 1fr 1fr 1fr 1.5fr 0.8fr;
   background: rgba(0, 245, 255, 0.1);
   border-bottom: 1px solid rgba(0, 245, 255, 0.2);
 }
@@ -2328,7 +2815,7 @@ nav ul li a.active::after {
 
 .table-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 2fr;
+  grid-template-columns: 0.5fr 1fr 1fr 1fr 1.5fr 0.8fr;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
   transition: all 0.3s ease;
