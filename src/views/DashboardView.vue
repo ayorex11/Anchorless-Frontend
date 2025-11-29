@@ -897,7 +897,7 @@ export default {
       return this.activePlan?.strategy === 'snowball' ? 'fas fa-snowflake' : 'fas fa-mountain'
     },
     formattedPayoffDate() {
-      if (!this.activePlan?.projected_payoff_date) return 'Calculating...'
+      if (!this.activePlan?.projected_payoff_date) return 'N/A'
       const date = new Date(this.activePlan.projected_payoff_date)
       return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     }

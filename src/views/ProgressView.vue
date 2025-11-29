@@ -2717,11 +2717,8 @@ nav ul li a.active::after {
   color: var(--light);
 }
 
-/* Schedule Detail Styles */
 .schedule-detail {
   padding: 0 2rem 2rem;
-  flex: 1;
-  overflow: auto;
 }
 
 .detail-header {
@@ -2805,13 +2802,27 @@ nav ul li a.active::after {
   font-size: 1.3rem;
 }
 
+.breakdowns-section {
+  margin-top: 2rem;
+}
+
 .breakdowns-section h3 {
   color: var(--light);
   margin-bottom: 1.5rem;
   font-size: 1.3rem;
 }
 
-.breakdowns-list {
+.breakdowns-section .breakdowns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  padding-bottom: 1rem;
+}
+
+ns-list {
   display: flex;
   flex-direction: column;
   gap: 1,5rem;
@@ -2825,9 +2836,9 @@ nav ul li a.active::after {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  padding:2rem 1.5rem;
+  padding: 1.5rem;
   min-height: auto;
-  margin-bottom: 1rem;
+  flex-shrink: 0;
 }
 
 .breakdown-card.detailed.focus-loan {
@@ -2840,6 +2851,7 @@ nav ul li a.active::after {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .loan-title h4 {
@@ -2885,9 +2897,9 @@ nav ul li a.active::after {
 .breakdown-details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-  margin-top: 1.5rem;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 0;
 }
 
 .detail-column {
@@ -2900,8 +2912,12 @@ nav ul li a.active::after {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
+  padding: 0.75rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detail-item:last-child {
+  border-bottom: none;
 }
 
 .detail-item .label {
@@ -3129,7 +3145,7 @@ nav ul li a.active::after {
     grid-template-columns: 1fr;
   }
   
-  .breakdowns-list {
+  ns-list {
     grid-template-columns: 1fr;
   }
   
