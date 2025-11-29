@@ -786,6 +786,163 @@
             </div>
           </div>
 
+          <!-- Payment Tracking Section -->
+          <div class="payment-section" v-if="scheduleDetail">
+            <h3>Record Payment</h3>
+            
+            <form @submit.prevent="submitPayment" class="payment-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="paymentLoan">Loan</label>
+                  <select 
+                    id="paymentLoan" 
+                    v-model="newPayment.loan" 
+                    required
+                    class="form-select"
+                  >
+                    <option value="" disabled>Select a loan</option>
+                    <option 
+                      v-for="breakdown in scheduleDetail.loan_breakdowns" 
+                      :key="breakdown.loan_id" 
+                      :value="breakdown.loan_id"
+                    >
+                      {{ breakdown.loan_name }} - ${{ breakdown.payment_amount }} due
+                    </option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="paymentAmount">Amount ($)</label>
+                  <input 
+                    type="number" 
+                    id="paymentAmount" 
+                    v-model="newPayment.amount" 
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="0.00"
+                  >
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="paymentDate">Payment Date</label>
+                  <input 
+                    type="date" 
+                    id="paymentDate" 
+                    v-model="newPayment.payment_date" 
+                    required
+                  >
+                </div>
+                
+                <div class="form-group">
+                  <label for="paymentMethod">Payment Method</label>
+                  <select 
+                    id="paymentMethod" 
+                    v-model="newPayment.payment_method" 
+                    required
+                    class="form-select"
+                  >
+                    <option value="" disabled>Select method</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="debit_card">Debit Card</option>
+                    <option value="check">Check</option>
+                    <option value="cash">Cash</option>
+                    <option value="auto_pay">Automatic Payment</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="confirmationNumber">Confirmation Number (Optional)</label>
+                  <input 
+                    type="text" 
+                    id="confirmationNumber" 
+                    v-model="newPayment.confirmation_number" 
+                    placeholder="Enter confirmation number"
+                    maxlength="100"
+                  >
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="paymentNotes">Notes (Optional)</label>
+                <textarea 
+                  id="paymentNotes" 
+                  v-model="newPayment.notes" 
+                  placeholder="Add any notes about this payment"
+                  rows="3"
+                ></textarea>
+              </div>
+
+              <div v-if="paymentError" class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>{{ paymentError }}</span>
+              </div>
+
+              <div class="payment-actions">
+                <button 
+                  type="submit" 
+                  class="btn btn-primary" 
+                  :disabled="paymentLoading"
+                >
+                  <span v-if="!paymentLoading">
+                    <i class="fas fa-check-circle"></i> Record Payment
+                  </span>
+                  <span v-else>
+                    <i class="fas fa-spinner fa-spin"></i> Processing...
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Recent Payments Section -->
+          <div class="recent-payments" v-if="recentPayments && recentPayments.length > 0">
+            <h3>Recent Payments</h3>
+            <div class="payments-list">
+              <div 
+                v-for="payment in recentPayments" 
+                :key="payment.id" 
+                class="payment-card"
+              >
+                <div class="payment-header">
+                  <div class="payment-info">
+                    <h4>{{ payment.loan_name }}</h4>
+                    <span class="payment-date">{{ formatDate(payment.payment_date) }}</span>
+                  </div>
+                  <div class="payment-amount">
+                    ${{ parseFloat(payment.amount).toLocaleString() }}
+                  </div>
+                </div>
+                <div class="payment-details">
+                  <div class="payment-method">
+                    <i class="fas fa-credit-card"></i>
+                    {{ payment.payment_method_display }}
+                  </div>
+                  <div class="payment-breakdown">
+                    <span class="breakdown-item">
+                      Principal: ${{ payment.principal_paid || '0.00' }}
+                    </span>
+                    <span class="breakdown-item">
+                      Interest: ${{ payment.interest_paid || '0.00' }}
+                    </span>
+                  </div>
+                  <div v-if="payment.confirmation_number" class="confirmation-number">
+                    Confirmation: {{ payment.confirmation_number }}
+                  </div>
+                  <div v-if="payment.notes" class="payment-notes">
+                    {{ payment.notes }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Actions -->
           <div class="detail-actions">
             <button class="btn btn-outline" @click="showDetailModal = false">
@@ -845,6 +1002,20 @@ export default {
       detailError: null,
       scheduleDetail: null,
       selectedSchedule: null,
+      
+      // Payment tracking
+      newPayment: {
+        loan: '',
+        debt_plan: '',
+        amount: '',
+        payment_date: new Date().toISOString().split('T')[0], // Today's date
+        payment_method: '',
+        notes: '',
+        confirmation_number: ''
+      },
+      recentPayments: [],
+      paymentLoading: false,
+      paymentError: null,
       
       // Tab data
       currentSchedule: null,
@@ -1108,11 +1279,82 @@ export default {
         }
         
         this.scheduleDetail = await response.json()
+        
+        // Fetch recent payments when detail modal opens
+        await this.fetchRecentPayments()
+        
       } catch (error) {
         console.error('Error fetching schedule detail:', error)
         this.detailError = error.message || 'Failed to load schedule details'
       } finally {
         this.detailLoading = false
+      }
+    },
+
+    // Payment Tracking Methods
+    async submitPayment() {
+      this.paymentLoading = true
+      this.paymentError = null
+      
+      try {
+        // Set the debt_plan from the selected plan
+        this.newPayment.debt_plan = this.selectedPlan.id
+        
+        const response = await api.post('/Payment/create_payment/', this.newPayment)
+        
+        if (response.status === 429) {
+          this.handleThrottling()
+          return
+        }
+        
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Failed to record payment')
+        }
+        
+        const paymentData = await response.json()
+        
+        // Reset form
+        this.resetPaymentForm()
+        
+        // Refresh data
+        await this.fetchScheduleDetail(this.selectedSchedule)
+        await this.fetchRecentPayments()
+        
+        this.showNotification('Payment recorded successfully!', 'success')
+        
+      } catch (error) {
+        console.error('Error recording payment:', error)
+        this.paymentError = error.message || 'Failed to record payment'
+      } finally {
+        this.paymentLoading = false
+      }
+    },
+
+    resetPaymentForm() {
+      this.newPayment = {
+        loan: '',
+        debt_plan: this.selectedPlan.id,
+        amount: '',
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: '',
+        notes: '',
+        confirmation_number: ''
+      }
+    },
+
+    async fetchRecentPayments() {
+      if (!this.selectedPlan) return
+      
+      try {
+        const response = await api.get(`/Payment/list_payments/?debt_plan=${this.selectedPlan.id}&limit=5`)
+        
+        if (!response.ok) throw new Error('Failed to fetch recent payments')
+        
+        this.recentPayments = await response.json()
+      } catch (error) {
+        console.error('Error fetching recent payments:', error)
+        this.recentPayments = []
       }
     },
 
@@ -1280,6 +1522,9 @@ export default {
     const authStore = useAuthStore()
     this.user = authStore.getUser
     this.fetchDebtPlans()
+    
+    // Initialize payment form with today's date
+    this.newPayment.payment_date = new Date().toISOString().split('T')[0]
   }
 }
 </script>
@@ -2863,16 +3108,6 @@ nav ul li a.active::after {
   padding-bottom: 1rem;
 }
 
-ns-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1,5rem;
-  max-height: 500px;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-  padding-bottom: 1rem;
-}
-
 .breakdown-card.detailed {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -3019,6 +3254,179 @@ ns-list {
   background: linear-gradient(90deg, var(--primary), var(--accent));
   border-radius: 4px;
   transition: width 0.3s ease;
+}
+
+/* Payment Section Styles */
+.payment-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: rgba(0, 245, 255, 0.05);
+  border: 1px solid rgba(0, 245, 255, 0.2);
+  border-radius: 12px;
+}
+
+.payment-section h3 {
+  color: var(--light);
+  margin-bottom: 1.5rem;
+  font-size: 1.3rem;
+}
+
+.payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  color: var(--light);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: var(--light);
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.2);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-select option {
+  background: var(--card-bg);
+  color: var(--light);
+}
+
+.payment-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* Recent Payments Styles */
+.recent-payments {
+  margin-top: 2rem;
+}
+
+.recent-payments h3 {
+  color: var(--light);
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+.payments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.payment-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+}
+
+.payment-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 245, 255, 0.2);
+}
+
+.payment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.payment-info h4 {
+  color: var(--light);
+  margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+}
+
+.payment-date {
+  color: var(--gray);
+  font-size: 0.85rem;
+}
+
+.payment-amount {
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+.payment-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.payment-method {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.payment-breakdown {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.breakdown-item {
+  color: var(--gray);
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+}
+
+.confirmation-number {
+  color: var(--gray);
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.payment-notes {
+  color: var(--gray);
+  font-size: 0.9rem;
+  font-style: italic;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .detail-actions {
@@ -3186,7 +3594,7 @@ ns-list {
     grid-template-columns: 1fr;
   }
   
-  ns-list {
+  .breakdowns-list {
     grid-template-columns: 1fr;
   }
   
@@ -3344,6 +3752,22 @@ ns-list {
 
   .summary-stat .value{
     font-size: 1.3rem;
+  }
+
+  /* Payment Section Responsive */
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .payment-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  .payment-breakdown {
+    flex-direction: column;
+    gap: 0.5rem;
   }
 }
 
