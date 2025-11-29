@@ -11,6 +11,7 @@
           <li><router-link to="/dashboard" class="active">Dashboard</router-link></li>
           <li><a href="#debts" @click.prevent="showMyDebts = true">My Debts</a></li>
           <li><router-link to ="/progress">Progress</router-link></li>
+          <li><router-link to = "/learn-more">Strategies explained</router-link></li>
         </ul>
       </nav>
       <div class="user-menu">

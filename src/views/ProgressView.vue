@@ -11,6 +11,7 @@
           <li><router-link to="/dashboard">Dashboard</router-link></li>
           <li><router-link to="/dashboard#debts">My Debt</router-link></li>
           <li><router-link to="/progress" class="active">Progress</router-link></li>
+          <li><router-link to = "/learn-more">Strategies explained</router-link></li>
         </ul>
       </nav>
       <div class="user-menu">
