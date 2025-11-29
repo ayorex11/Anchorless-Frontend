@@ -1182,9 +1182,50 @@ export default {
       }
     },
 
-    downloadSchedulePDF() {
-      this.showNotification('PDF download feature coming soon!', 'success')
-      // TODO: Implement PDF download
+    async downloadSchedulePDF() {
+      if (!this.selectedPlan){
+        this.showNotification('No debt plan selected for PDF download', 'error')
+        return
+      }
+      
+      try{
+        this.showNotification('Preparing PDF download...', 'success')
+
+        const response = await api.get(
+          `/accountability/pdf/${this.selectedPlan.id}/download/`,
+          { responseType: 'blob' }
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to download PDF')
+        }
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+
+        const contentDisposition = response.headers.get('Content-Disposition')
+        let filename = `payment-schedule-${this.selectedPlan.name}.pdf`
+        
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/)
+          if (filenameMatch) {
+            filename = filenameMatch[1]
+          }
+        }
+
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+
+        this.showNotification('PDF downloaded successfully!', 'success')
+      } catch (error) {
+        console.error('Error downloading PDF:', error)
+        this.showNotification('Failed to download PDF', 'error')
+      }
     },
 
     formatNumber(number) {
