@@ -870,8 +870,8 @@
                 
                 <div class="form-group">
                   <label for="paymentAmount">Amount ($) <span class="required">*</span></label>
-                  <div class="amount-input-container">
-                    <span class="currency-symbol">$</span>
+                  <div class="amount-input-wrapper">
+                    <span class="currency-prefix">$</span>
                     <input 
                       type="number" 
                       id="paymentAmount" 
@@ -1416,8 +1416,6 @@ export default {
     async submitPayment() {
       // Confirmation dialog
       const loanName = this.getLoanName(this.newPayment.loan)
-      const confirmed = confirm(`Record payment of $${this.newPayment.amount} for ${loanName}?`)
-      if (!confirmed) return
       
       this.paymentLoading = true
       this.paymentError = null
@@ -1425,6 +1423,10 @@ export default {
       try {
         // Set the debt_plan from the selected plan
         this.newPayment.debt_plan = this.selectedPlan.id
+
+        if(this.scheduleDetail){
+          this.newPayment.month_number = this.scheduleDetail.month_number
+        }
         
         const response = await api.post('/Payment/create_payment/', this.newPayment)
         
@@ -1476,8 +1478,11 @@ export default {
 
     quickPayLoan(breakdown) {
       this.newPayment.loan = breakdown.loan_id
-      this.newPayment.amount = breakdown.payment_deficit > 0 ? breakdown.payment_deficit : breakdown.payment_amount
-      // Scroll to payment form
+      if (breakdown.payment_deficit && breakdown.payment_deficit> 0) {
+        this.newPayment.amount = breakdown.payment_deficit
+      } else {
+        this.newPayment.amount = breakdown.payment_amount
+      }
       this.$nextTick(() => {
         const paymentSection = document.querySelector('.payment-section')
         if (paymentSection) {
@@ -1850,18 +1855,6 @@ export default {
   margin-top: 0.25rem;
 }
 
-.amount-input-container {
-  position: relative;
-}
-
-.currency-symbol {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--gray);
-  font-weight: 600;
-}
 
 .amount-input {
   padding-left: 1.5rem;
@@ -4291,5 +4284,25 @@ nav ul li a.active::after {
   .progress-details {
     grid-template-columns: 1fr;
   }
+}
+
+.amount-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-prefix {
+  position: absolute;
+  left: 1rem;
+  color: var(--gray);
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.amount-input {
+  padding-left: 2rem !important;
+  width: 100%;
 }
 </style>
