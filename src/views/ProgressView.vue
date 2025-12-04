@@ -1451,6 +1451,9 @@ export default {
         // Refresh data
         await this.fetchScheduleDetail(this.selectedSchedule)
         await this.fetchRecentPayments()
+        await this.fetchCurrentSchedule()
+        await this.fetchFullSchedule()
+        await this.fetchProgressData()
         
         // Add the new payment to recent payments with success animation
         if (this.recentPayments) {
@@ -4304,5 +4307,20 @@ nav ul li a.active::after {
 .amount-input {
   padding-left: 2rem !important;
   width: 100%;
+}
+
+.alert {
+  padding: 1rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
 }
 </style>
