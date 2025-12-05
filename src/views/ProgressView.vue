@@ -1084,6 +1084,7 @@ export default {
       newPayment: {
         loan: '',
         debt_plan: '',
+        month_number: null,
         amount: '',
         payment_date: new Date().toISOString().split('T')[0], // Today's date
         payment_method: '',
@@ -1421,14 +1422,15 @@ export default {
       this.paymentError = null
       
       try {
-        // Set the debt_plan from the selected plan
-        this.newPayment.debt_plan = this.selectedPlan.id
 
-        if(this.scheduleDetail){
-          this.newPayment.month_number = this.scheduleDetail.month_number
+        const PaymentData = {
+          ...this.newPayment,
+          debt_plan: this.selectedPlan.id,
+          month_number: this.scheduleDetail.month_number
         }
+
         
-        const response = await api.post('/Payment/create_payment/', this.newPayment)
+        const response = await api.post('/Payment/create_payment/', PaymentData)
         
         if (response.status === 429) {
           this.handleThrottling()
@@ -1498,6 +1500,7 @@ export default {
       this.newPayment = {
         loan: '',
         debt_plan: this.selectedPlan.id,
+        month_number: this.scheduleDetail?.month_number || null,
         amount: '',
         payment_date: new Date().toISOString().split('T')[0],
         payment_method: '',
