@@ -1430,7 +1430,11 @@ export default {
         }
 
         
-        const response = await api.post('/Payment/create_payment/', PaymentData)
+        const response = await api.post('/Payment/create_payment/',
+          {...PaymentData,
+            skip_recalculation: true
+          }
+        )
         
         if (response.status === 429) {
           this.handleThrottling()
